@@ -22,7 +22,7 @@ allow = [
     "Zlib",
     "OpenSSL",
     "CDLA-Permissive-2.0",
-    "GPL-3.0",
+    "GPL-3.0-only",
 ]
 confidence-threshold = 0.8
 
