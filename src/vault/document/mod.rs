@@ -1,12 +1,12 @@
 use crate::crypto;
 use crate::crypto::secret::SecretString;
-use crate::error::{BovedaError, BovedaResult};
+use crate::error::{CriptorError, CriptorResult};
 use crate::storage;
 use crate::vault::validation;
 
-impl super::BovedaEngine {
+impl super::CriptorEngine {
     /// Retrieves and decrypts all document headers (title + metadata, NOT content).
-    pub async fn get_documents(&self) -> BovedaResult<Vec<crate::storage::models::Document>> {
+    pub async fn get_documents(&self) -> CriptorResult<Vec<crate::storage::models::Document>> {
         self.check_unlocked()?;
         let rows = storage::get_documents(&self.db).await?;
         let mut docs = Vec::with_capacity(rows.len());
@@ -32,7 +32,7 @@ impl super::BovedaEngine {
         title: SecretString,
         description: Option<SecretString>,
         content: SecretString,
-    ) -> BovedaResult<String> {
+    ) -> CriptorResult<String> {
         self.check_unlocked()?;
 
         validation::validate_string(title.as_str(), "Título", 256, true)?;
@@ -48,7 +48,7 @@ impl super::BovedaEngine {
                 .map(|d| crypto::encrypt(d, key))
                 .transpose()?;
             let c = crypto::encrypt(&content, key)?;
-            Ok::<_, BovedaError>((t, d, c))
+            Ok::<_, CriptorError>((t, d, c))
         })??;
 
         let id = storage::add_document(
@@ -70,7 +70,7 @@ impl super::BovedaEngine {
         title: SecretString,
         description: Option<SecretString>,
         content: SecretString,
-    ) -> BovedaResult<()> {
+    ) -> CriptorResult<()> {
         self.check_unlocked()?;
 
         validation::validate_string(title.as_str(), "Título", 256, true)?;
@@ -86,7 +86,7 @@ impl super::BovedaEngine {
                 .map(|d| crypto::encrypt(d, key))
                 .transpose()?;
             let c = crypto::encrypt(&content, key)?;
-            Ok::<_, BovedaError>((t, d, c))
+            Ok::<_, CriptorError>((t, d, c))
         })??;
 
         storage::update_document(
@@ -103,14 +103,14 @@ impl super::BovedaEngine {
     }
 
     /// Deletes a document by ID.
-    pub async fn delete_document(&self, id: &str) -> BovedaResult<()> {
+    pub async fn delete_document(&self, id: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
         self.log_audit(crate::audit::AuditAction::DocumentDelete, Some(id)).await?;
         storage::delete_document(&self.db, id).await
     }
 
     /// Decrypts the content of a single document on demand.
-    pub fn decrypt_document_content(&self, encrypted_content: &str) -> BovedaResult<String> {
+    pub fn decrypt_document_content(&self, encrypted_content: &str) -> CriptorResult<String> {
         self.with_key(|key| {
             crypto::decrypt(encrypted_content, key)
                 .map(|s| s.as_str().to_string())

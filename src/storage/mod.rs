@@ -4,7 +4,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sqlx::{SqlitePool, SqliteConnection};
 use uuid::Uuid;
-use crate::error::BovedaResult;
+use crate::error::CriptorResult;
 
 /// A row from the `accounts` table as returned to the frontend.
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
@@ -47,11 +47,11 @@ pub struct DocumentRow {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Initialize the SQLite database schema.
-pub async fn init_db(pool: &SqlitePool) -> BovedaResult<()> {
+pub async fn init_db(pool: &SqlitePool) -> CriptorResult<()> {
     sqlx::query(
         r"
         -- vault_meta was removed: the KDF salt is stored as `vault.salt` on the filesystem
-        -- (see vault/mod.rs BovedaEngine::unlock). There is no salt in the DB.
+        -- (see vault/mod.rs CriptorEngine::unlock). There is no salt in the DB.
         CREATE TABLE IF NOT EXISTS accounts (
             id                  TEXT PRIMARY KEY,
             site                TEXT NOT NULL,
@@ -147,7 +147,7 @@ pub async fn add_account(
     encrypted_recovery_code: Option<&str>,
     encrypted_notes: Option<&str>,
     favicon_url: Option<&str>,
-) -> BovedaResult<String> {
+) -> CriptorResult<String> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
@@ -172,7 +172,7 @@ pub async fn add_account(
 }
 
 /// Fetch all account rows.
-pub async fn get_accounts(pool: &SqlitePool) -> BovedaResult<Vec<AccountRow>> {
+pub async fn get_accounts(pool: &SqlitePool) -> CriptorResult<Vec<AccountRow>> {
     let rows = sqlx::query_as::<_, AccountRow>(
         r"SELECT id, site, username, encrypted_password, encrypted_recovery_code,
                   encrypted_notes, favicon_url, group_name, created_at, updated_at
@@ -184,7 +184,7 @@ pub async fn get_accounts(pool: &SqlitePool) -> BovedaResult<Vec<AccountRow>> {
 }
 
 /// Fetch a page of account rows.
-pub async fn get_accounts_paged(pool: &SqlitePool, limit: i64, offset: i64) -> BovedaResult<Vec<AccountRow>> {
+pub async fn get_accounts_paged(pool: &SqlitePool, limit: i64, offset: i64) -> CriptorResult<Vec<AccountRow>> {
     let rows = sqlx::query_as::<_, AccountRow>(
         r"SELECT id, site, username, encrypted_password, encrypted_recovery_code,
                   encrypted_notes, favicon_url, group_name, created_at, updated_at
@@ -198,7 +198,7 @@ pub async fn get_accounts_paged(pool: &SqlitePool, limit: i64, offset: i64) -> B
 }
 
 /// Delete an account by ID.
-pub async fn delete_account(pool: &SqlitePool, id: &str) -> BovedaResult<()> {
+pub async fn delete_account(pool: &SqlitePool, id: &str) -> CriptorResult<()> {
     sqlx::query("DELETE FROM accounts WHERE id = ?")
         .bind(id)
         .execute(pool)
@@ -214,7 +214,7 @@ pub async fn add_pin(
     encrypted_pin: &str,
     encrypted_notes: Option<&str>,
     group_name: Option<&str>,
-) -> BovedaResult<String> {
+) -> CriptorResult<String> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
@@ -236,7 +236,7 @@ pub async fn add_pin(
     Ok(id)
 }
 
-pub async fn get_pins(pool: &SqlitePool) -> BovedaResult<Vec<PinRow>> {
+pub async fn get_pins(pool: &SqlitePool) -> CriptorResult<Vec<PinRow>> {
     let rows = sqlx::query_as::<_, PinRow>(
         r"SELECT id, name, encrypted_pin, encrypted_notes, group_name, created_at, updated_at
            FROM pins ORDER BY name ASC",
@@ -246,7 +246,7 @@ pub async fn get_pins(pool: &SqlitePool) -> BovedaResult<Vec<PinRow>> {
     Ok(rows)
 }
 
-pub async fn delete_pin(pool: &SqlitePool, id: &str) -> BovedaResult<()> {
+pub async fn delete_pin(pool: &SqlitePool, id: &str) -> CriptorResult<()> {
     sqlx::query("DELETE FROM pins WHERE id = ?")
         .bind(id)
         .execute(pool)
@@ -258,7 +258,7 @@ pub async fn update_pin_group(
     pool: &SqlitePool,
     id: &str,
     group_name: Option<&str>,
-) -> BovedaResult<()> {
+) -> CriptorResult<()> {
     sqlx::query("UPDATE pins SET group_name = ?, updated_at = ? WHERE id = ?")
         .bind(group_name)
         .bind(Utc::now().to_rfc3339())
@@ -275,7 +275,7 @@ pub async fn add_document(
     title: &str,
     encrypted_description: Option<&str>,
     encrypted_content: &str,
-) -> BovedaResult<String> {
+) -> CriptorResult<String> {
     let id = Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
 
@@ -296,7 +296,7 @@ pub async fn add_document(
     Ok(id)
 }
 
-pub async fn get_documents(pool: &SqlitePool) -> BovedaResult<Vec<DocumentRow>> {
+pub async fn get_documents(pool: &SqlitePool) -> CriptorResult<Vec<DocumentRow>> {
     let rows = sqlx::query_as::<_, DocumentRow>(
         r"SELECT id, title, encrypted_description, encrypted_content, created_at, updated_at
            FROM documents ORDER BY updated_at DESC",
@@ -306,7 +306,7 @@ pub async fn get_documents(pool: &SqlitePool) -> BovedaResult<Vec<DocumentRow>> 
     Ok(rows)
 }
 
-pub async fn get_document_by_id(pool: &SqlitePool, id: &str) -> BovedaResult<Option<DocumentRow>> {
+pub async fn get_document_by_id(pool: &SqlitePool, id: &str) -> CriptorResult<Option<DocumentRow>> {
     let row = sqlx::query_as::<_, DocumentRow>(
         r"SELECT id, title, encrypted_description, encrypted_content, created_at, updated_at
            FROM documents WHERE id = ?",
@@ -323,7 +323,7 @@ pub async fn update_document(
     title: &str,
     encrypted_description: Option<&str>,
     encrypted_content: &str,
-) -> BovedaResult<()> {
+) -> CriptorResult<()> {
     let now = Utc::now().to_rfc3339();
     sqlx::query(
         r"UPDATE documents
@@ -340,7 +340,7 @@ pub async fn update_document(
     Ok(())
 }
 
-pub async fn delete_document(pool: &SqlitePool, id: &str) -> BovedaResult<()> {
+pub async fn delete_document(pool: &SqlitePool, id: &str) -> CriptorResult<()> {
     sqlx::query("DELETE FROM documents WHERE id = ?")
         .bind(id)
         .execute(pool)
@@ -353,7 +353,7 @@ pub async fn update_account_group(
     pool: &SqlitePool,
     id: &str,
     group_name: Option<&str>,
-) -> BovedaResult<()> {
+) -> CriptorResult<()> {
     sqlx::query("UPDATE accounts SET group_name = ?, updated_at = ? WHERE id = ?")
         .bind(group_name)
         .bind(Utc::now().to_rfc3339())
@@ -364,7 +364,7 @@ pub async fn update_account_group(
 }
 
 /// Rename all accounts belonging to `old_name` to `new_name` (Transactional).
-pub async fn rename_group_tx(conn: &mut SqliteConnection, old_name: &str, new_name: &str) -> BovedaResult<()> {
+pub async fn rename_group_tx(conn: &mut SqliteConnection, old_name: &str, new_name: &str) -> CriptorResult<()> {
     sqlx::query(
         "UPDATE accounts SET group_name = ?, updated_at = ? WHERE group_name = ?",
     )
@@ -387,7 +387,7 @@ pub async fn rename_group_tx(conn: &mut SqliteConnection, old_name: &str, new_na
 }
 
 /// Remove group association from all accounts belonging to `name` (Transactional).
-pub async fn delete_group_tx(conn: &mut SqliteConnection, name: &str) -> BovedaResult<()> {
+pub async fn delete_group_tx(conn: &mut SqliteConnection, name: &str) -> CriptorResult<()> {
     sqlx::query(
         "UPDATE accounts SET group_name = NULL, updated_at = ? WHERE group_name = ?",
     )
@@ -408,7 +408,7 @@ pub async fn delete_group_tx(conn: &mut SqliteConnection, name: &str) -> BovedaR
 }
 
 /// Count how many accounts belong to a given group.
-pub async fn count_accounts_in_group(pool: &SqlitePool, group_name: &str) -> BovedaResult<i64> {
+pub async fn count_accounts_in_group(pool: &SqlitePool, group_name: &str) -> CriptorResult<i64> {
     let row: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM accounts WHERE group_name = ?")
             .bind(group_name)
@@ -418,7 +418,7 @@ pub async fn count_accounts_in_group(pool: &SqlitePool, group_name: &str) -> Bov
 }
 
 /// Get a user preference by key.
-pub async fn get_preference(pool: &SqlitePool, key: &str) -> BovedaResult<Option<String>> {
+pub async fn get_preference(pool: &SqlitePool, key: &str) -> CriptorResult<Option<String>> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM preferences WHERE key = ?")
         .bind(key)
         .fetch_optional(pool)
@@ -426,14 +426,14 @@ pub async fn get_preference(pool: &SqlitePool, key: &str) -> BovedaResult<Option
     Ok(row.map(|(v,)| v))
 }
 
-pub async fn get_all_preferences(pool: &SqlitePool) -> BovedaResult<Vec<(String, String)>> {
+pub async fn get_all_preferences(pool: &SqlitePool) -> CriptorResult<Vec<(String, String)>> {
     let rows: Vec<(String, String)> = sqlx::query_as("SELECT key, value FROM preferences")
         .fetch_all(pool)
         .await?;
     Ok(rows)
 }
 
-pub async fn get_preference_tx(conn: &mut SqliteConnection, key: &str) -> BovedaResult<Option<String>> {
+pub async fn get_preference_tx(conn: &mut SqliteConnection, key: &str) -> CriptorResult<Option<String>> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM preferences WHERE key = ?")
         .bind(key)
         .fetch_optional(conn)
@@ -442,7 +442,7 @@ pub async fn get_preference_tx(conn: &mut SqliteConnection, key: &str) -> Boveda
 }
 
 /// Set (upsert) a user preference.
-pub async fn set_preference(pool: &SqlitePool, key: &str, value: &str) -> BovedaResult<()> {
+pub async fn set_preference(pool: &SqlitePool, key: &str, value: &str) -> CriptorResult<()> {
     sqlx::query(
         "INSERT INTO preferences (key, value) VALUES (?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -454,7 +454,7 @@ pub async fn set_preference(pool: &SqlitePool, key: &str, value: &str) -> Boveda
     Ok(())
 }
 
-pub async fn set_preference_tx(conn: &mut SqliteConnection, key: &str, value: &str) -> BovedaResult<()> {
+pub async fn set_preference_tx(conn: &mut SqliteConnection, key: &str, value: &str) -> CriptorResult<()> {
     sqlx::query(
         "INSERT INTO preferences (key, value) VALUES (?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -467,7 +467,7 @@ pub async fn set_preference_tx(conn: &mut SqliteConnection, key: &str, value: &s
 }
 
 /// Delete a user preference by key.
-pub async fn delete_preference(pool: &SqlitePool, key: &str) -> BovedaResult<()> {
+pub async fn delete_preference(pool: &SqlitePool, key: &str) -> CriptorResult<()> {
     sqlx::query("DELETE FROM preferences WHERE key = ?")
         .bind(key)
         .execute(pool)
@@ -475,7 +475,7 @@ pub async fn delete_preference(pool: &SqlitePool, key: &str) -> BovedaResult<()>
     Ok(())
 }
 
-pub async fn delete_preference_tx(conn: &mut SqliteConnection, key: &str) -> BovedaResult<()> {
+pub async fn delete_preference_tx(conn: &mut SqliteConnection, key: &str) -> CriptorResult<()> {
     sqlx::query("DELETE FROM preferences WHERE key = ?")
         .bind(key)
         .execute(conn)
@@ -496,7 +496,7 @@ pub async fn add_audit_log(
     pool: &SqlitePool,
     action: &str,
     metadata: Option<&str>,
-) -> BovedaResult<()> {
+) -> CriptorResult<()> {
     let now = Utc::now().to_rfc3339();
     sqlx::query("INSERT INTO audit_log (action, metadata, created_at) VALUES (?, ?, ?)")
         .bind(action)
@@ -511,7 +511,7 @@ pub async fn add_audit_log(
 
 /// Delete all audit log rows that exceed the [`AUDIT_LOG_MAX_ROWS`] cap,
 /// retaining only the most recent entries.
-pub async fn prune_audit_log(pool: &SqlitePool) -> BovedaResult<()> {
+pub async fn prune_audit_log(pool: &SqlitePool) -> CriptorResult<()> {
     sqlx::query(
         "DELETE FROM audit_log \
          WHERE id NOT IN (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?)",
@@ -523,7 +523,7 @@ pub async fn prune_audit_log(pool: &SqlitePool) -> BovedaResult<()> {
 }
 
 /// Remove all rows from the audit log (manual reset).
-pub async fn clear_audit_log(pool: &SqlitePool) -> BovedaResult<()> {
+pub async fn clear_audit_log(pool: &SqlitePool) -> CriptorResult<()> {
     sqlx::query("DELETE FROM audit_log")
         .execute(pool)
         .await?;
@@ -531,7 +531,7 @@ pub async fn clear_audit_log(pool: &SqlitePool) -> BovedaResult<()> {
 }
 
 /// Fetch recent audit logs.
-pub async fn get_audit_logs(pool: &SqlitePool, limit: i64) -> BovedaResult<Vec<(i64, String, Option<String>, String)>> {
+pub async fn get_audit_logs(pool: &SqlitePool, limit: i64) -> CriptorResult<Vec<(i64, String, Option<String>, String)>> {
     let rows: Vec<(i64, String, Option<String>, String)> =
         sqlx::query_as("SELECT id, action, metadata, created_at FROM audit_log ORDER BY id DESC LIMIT ?")
             .bind(limit)

@@ -1,7 +1,7 @@
 // Only utilities for background images and paths remain here.
 
 impl super::CriptorClient {
-    pub async fn import_background_image(src_path: &str) -> Result<String, String> {
+    pub async fn import_background_image(&self, src_path: &str) -> Result<String, String> {
         let src = std::path::Path::new(src_path);
         if !src.exists() {
             return Err("The image file does not exist.".to_string());
@@ -18,7 +18,7 @@ impl super::CriptorClient {
             return Err("Image format not supported. Use JPG, PNG, WEBP or GIF.".to_string());
         }
 
-        let dest_dir = Self::app_data_dir();
+        let dest_dir = self.app_data_dir();
         for old_ext in &allowed {
             let _ = std::fs::remove_file(dest_dir.join(format!("background.{}", old_ext)));
         }
@@ -31,8 +31,8 @@ impl super::CriptorClient {
         Ok(dest_filename)
     }
 
-    pub fn get_background_data_url(filename: &str) -> Result<String, String> {
-        let path = Self::app_data_dir().join(filename);
+    pub fn get_background_data_url(&self, filename: &str) -> Result<String, String> {
+        let path = self.app_data_dir().join(filename);
 
         let bytes = std::fs::read(&path)
             .map_err(|e| format!("Cannot read background image: {}", e))?;
@@ -55,7 +55,7 @@ impl super::CriptorClient {
         Ok(format!("data:{};base64,{}", mime, encoded))
     }
 
-    pub fn get_data_dir() -> String {
-        Self::app_data_dir().to_string_lossy().to_string()
+    pub fn get_data_dir(&self) -> String {
+        self.app_data_dir().to_string_lossy().to_string()
     }
 }

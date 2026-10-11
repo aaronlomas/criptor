@@ -12,11 +12,11 @@ pub mod security;
 #[cfg(test)]
 mod tests;
 
-pub use vault::BovedaEngine;
+pub use vault::CriptorEngine;
 pub use vault::MasterKey;
 pub use storage::models::{Account, Pin, Document};
 pub use crypto::secret::{SecretKey, SecretString};
-pub use error::{BovedaError, BovedaResult};
+pub use error::{CriptorError, CriptorResult};
 pub use client::CriptorClient;
 
 /// Applies OS-level anti-forensic protections to the current process.

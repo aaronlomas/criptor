@@ -1,4 +1,4 @@
-use crate::error::{BovedaError, BovedaResult};
+use crate::error::{CriptorError, CriptorResult};
 
 pub const MAX_SITE_LEN: usize = 256;
 pub const MAX_USERNAME_LEN: usize = 256;
@@ -10,13 +10,13 @@ pub const MAX_PREF_VALUE_LEN: usize = 8192;
 pub const MAX_PIN_NAME_LEN: usize = 128;
 pub const MAX_PIN_LEN: usize = 64;
 
-pub fn validate_string(s: &str, field: &str, max_len: usize, required: bool) -> BovedaResult<()> {
+pub fn validate_string(s: &str, field: &str, max_len: usize, required: bool) -> CriptorResult<()> {
     let trimmed = s.trim();
     if required && trimmed.is_empty() {
-        return Err(BovedaError::EmptyInput { field: field.to_string() });
+        return Err(CriptorError::EmptyInput { field: field.to_string() });
     }
     if s.len() > max_len {
-        return Err(BovedaError::InputTooLong {
+        return Err(CriptorError::InputTooLong {
             field: field.to_string(),
             max: max_len,
         });

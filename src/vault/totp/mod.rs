@@ -1,17 +1,17 @@
-use crate::vault::BovedaEngine;
-use crate::error::{BovedaError, BovedaResult};
+use crate::vault::CriptorEngine;
+use crate::error::{CriptorError, CriptorResult};
 use crate::crypto;
 use crate::crypto::secret::SecretString;
 use crate::auth::{TotpManager, TotpSetupPayload};
 use base64::Engine;
 use subtle::ConstantTimeEq;
 
-impl BovedaEngine {
+impl CriptorEngine {
     // ─── TOTP (2FA) Management ─────────────────────────────────────────────────
 
     /// Initializes 2FA for the vault.
     /// Generates a new seed, encrypts it with the master key, and saves it.
-    pub async fn setup_totp(&self) -> BovedaResult<TotpSetupPayload> {
+    pub async fn setup_totp(&self) -> CriptorResult<TotpSetupPayload> {
         self.check_unlocked()?;
 
         let cipher_exists = self.get_preference("totp_secret_cipher").await?.is_some();
@@ -20,7 +20,7 @@ impl BovedaEngine {
         if cipher_exists {
             if is_enabled {
                 // SEC-4: Prevent overwriting an active, confirmed 2FA without explicit disable
-                return Err(BovedaError::Other("TOTP ya está configurado. Desactívalo primero para re-vincular.".to_string()));
+                return Err(CriptorError::Other("TOTP ya está configurado. Desactívalo primero para re-vincular.".to_string()));
             } else {
                 // Orphaned cipher from a previous cancelled setup — clean it up silently
                 let mut tx = self.db.begin().await?;
@@ -41,7 +41,7 @@ impl BovedaEngine {
         let seed_b64 = base64::engine::general_purpose::STANDARD.encode(seed.as_bytes());
         let encrypted_seed = self.with_key(|key| {
             crypto::encrypt(&SecretString::from(seed_b64), key)
-                .map_err(|e| BovedaError::CryptoError(e.to_string()))
+                .map_err(|e| CriptorError::CryptoError(e.to_string()))
         })??;
 
         // 4. Generate recovery codes
@@ -54,7 +54,7 @@ impl BovedaEngine {
         for code in &recovery_codes {
             let enc_code = self.with_key(|key| {
                 crypto::encrypt(&SecretString::from(code.clone()), key)
-                    .map_err(|e| BovedaError::CryptoError(e.to_string()))
+                    .map_err(|e| CriptorError::CryptoError(e.to_string()))
             })??;
             sqlx::query("INSERT INTO totp_recovery_codes (code_cipher) VALUES (?)")
                 .bind(enc_code)
@@ -84,7 +84,7 @@ impl BovedaEngine {
 
     /// Verifies a TOTP code against the persisted encrypted secret.
     /// SEC-H1: Implements rate limiting to prevent brute force attacks on TOTP codes.
-    pub async fn verify_totp(&self, code: &str) -> BovedaResult<bool> {
+    pub async fn verify_totp(&self, code: &str) -> CriptorResult<bool> {
         self.check_unlocked()?;
 
         // SEC-H1: Rate limiting - check failed attempts
@@ -103,7 +103,7 @@ impl BovedaEngine {
                         .as_secs() as i64;
                     
                     if now - ts < 300 { // 5 minutes
-                        return Err(BovedaError::Other(
+                        return Err(CriptorError::Other(
                             format!("Demasiados intentos fallidos. Intenta en {} segundos.", 300 - (now - ts))
                         ));
                     }
@@ -112,17 +112,17 @@ impl BovedaEngine {
         }
 
         let cipher = self.get_preference("totp_secret_cipher").await?
-            .ok_or_else(|| BovedaError::Other("TOTP no está configurado".to_string()))?;
+            .ok_or_else(|| CriptorError::Other("TOTP no está configurado".to_string()))?;
 
         // Decrypt the seed (Base64 string)
         let seed_b64 = self.with_key(|key| {
             crypto::decrypt(&cipher, key)
-                .map_err(|e| BovedaError::CryptoError(e.to_string()))
+                .map_err(|e| CriptorError::CryptoError(e.to_string()))
         })??;
 
         // Decode base64 to raw bytes
         let seed_bytes = base64::engine::general_purpose::STANDARD.decode(seed_b64.as_str())
-            .map_err(|e: base64::DecodeError| BovedaError::CryptoError(e.to_string()))?;
+            .map_err(|e: base64::DecodeError| CriptorError::CryptoError(e.to_string()))?;
         
         let seed = crate::crypto::secret::SecretBytes::new(seed_bytes);
         let valid = TotpManager::verify(&seed, code)?;
@@ -151,7 +151,7 @@ impl BovedaEngine {
     }
 
     /// Disables 2FA by removing the encrypted seed and recovery codes from storage.
-    pub async fn disable_totp(&self) -> BovedaResult<()> {
+    pub async fn disable_totp(&self) -> CriptorResult<()> {
         self.check_unlocked()?;
 
         let mut tx = self.db.begin().await?;
@@ -184,7 +184,7 @@ impl BovedaEngine {
     /// key (a single JSON-blob of all codes) is no longer written by `setup_totp()` and is cleaned
     /// up by both `setup_totp()` and `disable_totp()`. Vaults that still carry the legacy key are
     /// treated as misconfigured — callers must re-link 2FA via `setup_totp()`.
-    pub async fn verify_totp_recovery(&self, input_code: &str) -> BovedaResult<bool> {
+    pub async fn verify_totp_recovery(&self, input_code: &str) -> CriptorResult<bool> {
         self.check_unlocked()?;
         
         // Retrieve codes from the dedicated table (current format).
@@ -205,7 +205,7 @@ impl BovedaEngine {
         // is no longer written and its presence signals a corrupted/pre-migration vault.
         // Users in this state must re-link 2FA via setup_totp().
         if codes.is_empty() {
-            return Err(BovedaError::Other(
+            return Err(CriptorError::Other(
                 "Códigos de recuperación no configurados. Por favor, re-vincula el autenticador.".to_string()
             ));
         }
@@ -258,7 +258,7 @@ impl BovedaEngine {
     }
 
     /// Returns true if TOTP 2FA is currently enabled.
-    pub async fn is_totp_enabled(&self) -> BovedaResult<bool> {
+    pub async fn is_totp_enabled(&self) -> CriptorResult<bool> {
         let enabled = self.get_preference("totp_enabled").await?;
         Ok(enabled.as_deref() == Some("true"))
     }

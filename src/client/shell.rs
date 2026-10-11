@@ -8,7 +8,7 @@ use crate::storage::AUDIT_LOG_MAX_ROWS;
 
 impl CriptorClient {
     /// Processes a plain text command and returns response lines.
-    /// This method is the only entry point for the Bóveda CLI.
+    /// This method is the only entry point for the shell interface.
     pub async fn query_shell(&self, input: &str) -> Vec<String> {
         let parts: Vec<&str> = input.trim().splitn(2, ' ').collect();
         let command = parts[0].to_lowercase();
@@ -16,7 +16,7 @@ impl CriptorClient {
 
         match command.as_str() {
             "help" => vec![
-                "┌─ boveda-core CLI ─────────────────────────────────────────┐".into(),
+                "┌─ criptor SDK CLI ─────────────────────────────────────────┐".into(),
                 "│  crypto       Show active cryptographic parameters        │".into(),
                 "│  status       Show vault lock state and session info      │".into(),
                 "│  audit        Show last 10 audit log entries              │".into(),
@@ -49,8 +49,8 @@ impl CriptorClient {
                 let session_state = if session_ok { "VERIFIED" } else if !locked { "PENDING_TOTP" } else { "N/A" };
 
                 vec![
-                    "── Bóveda Status ────────────────────────────────────────────".into(),
-                    format!("  Bóveda State      : {}", vault_state),
+                    "── Criptor Status ───────────────────────────────────────────".into(),
+                    format!("  Criptor State     : {}", vault_state),
                     format!("  Session          : {}", session_state),
                     format!("  DB Path          : {}", self.db_path.display()),
                     "────────────────────────────────────────────────────────────".into(),
@@ -90,7 +90,7 @@ impl CriptorClient {
             "" => vec![],
 
             unknown => vec![
-                format!("boveda-core: command not found: '{}'", unknown),
+                format!("criptor: command not found: '{}'", unknown),
                 "  Type 'help' to see available commands.".into(),
             ],
         }

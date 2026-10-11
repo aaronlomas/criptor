@@ -1,16 +1,16 @@
 #[cfg(test)]
-use crate::vault::BovedaEngine;
+use crate::vault::CriptorEngine;
 #[cfg(test)]
 use crate::crypto::secret::{SecretString, SecretKey};
 #[cfg(test)]
-use crate::error::BovedaError;
+use crate::error::CriptorError;
 #[cfg(test)]
 use std::path::PathBuf;
 
 #[cfg(test)]
-async fn setup_engine() -> BovedaEngine {
+async fn setup_engine() -> CriptorEngine {
     // Use an in-memory database for testing
-    let engine = BovedaEngine::open_unencrypted(&PathBuf::from(":memory:")).await.unwrap();
+    let engine = CriptorEngine::open_unencrypted(&PathBuf::from(":memory:")).await.unwrap();
     crate::storage::init_db(&engine.db).await.unwrap();
     engine
 }
@@ -22,7 +22,7 @@ async fn test_locking_guards() {
     assert!(engine.is_locked());
 
     let res = engine.get_accounts().await;
-    assert!(matches!(res, Err(BovedaError::VaultLocked)));
+    assert!(matches!(res, Err(CriptorError::VaultLocked)));
 
     let res = engine.add_account(
         SecretString::from("site"),
@@ -31,7 +31,7 @@ async fn test_locking_guards() {
         None,
         None
     ).await;
-    assert!(matches!(res, Err(BovedaError::VaultLocked)));
+    assert!(matches!(res, Err(CriptorError::VaultLocked)));
 }
 
 #[tokio::test]
@@ -148,19 +148,19 @@ async fn test_full_unlock_flow_with_files() {
     let password = SecretString::from("correct_password");
 
     // 1. Initial unlock (should create salt and db)
-    let engine = BovedaEngine::unlock(&db_path, &password).await.unwrap();
+    let engine = CriptorEngine::unlock(&db_path, &password).await.unwrap();
     assert!(salt_path.exists());
     assert!(!engine.is_locked());
     engine.close().await;
 
     // 2. Unlock again with correct password
-    let engine = BovedaEngine::unlock(&db_path, &password).await.unwrap();
+    let engine = CriptorEngine::unlock(&db_path, &password).await.unwrap();
     assert!(!engine.is_locked());
     engine.close().await;
 
     // 3. Unlock with wrong password
     let wrong_password = SecretString::from("wrong");
-    let res = BovedaEngine::unlock(&db_path, &wrong_password).await;
+    let res = CriptorEngine::unlock(&db_path, &wrong_password).await;
     assert!(res.is_err());
 
     // Cleanup

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::crypto::secret::{SecretString, SecretBytes};
-use crate::error::BovedaResult;
+use crate::error::CriptorResult;
 use crate::crypto;
 
 #[derive(Serialize, Deserialize)]
@@ -48,13 +48,13 @@ pub struct ExportPayload {
 
 impl ExportPackage {
     /// Creates a new encrypted export package from the given payload and password.
-    pub fn encrypt(payload: &ExportPayload, password: &SecretString) -> BovedaResult<Self> {
+    pub fn encrypt(payload: &ExportPayload, password: &SecretString) -> CriptorResult<Self> {
         use rand::RngCore;
         use base64::Engine;
 
         // 1. Serialize payload to binary (Zeroize-ready)
         let json_data = serde_json::to_vec(payload)
-            .map_err(|e| crate::error::BovedaError::SerializationError(e.to_string()))?;
+            .map_err(|e| crate::error::CriptorError::SerializationError(e.to_string()))?;
         let secret_json = SecretBytes::new(json_data);
 
         // 2. Generate new salt for export (independent from master vault)
@@ -76,7 +76,7 @@ impl ExportPackage {
     }
 
     /// Decrypts an export package into a payload.
-    pub fn decrypt(&self, password: &SecretString) -> BovedaResult<ExportPayload> {
+    pub fn decrypt(&self, password: &SecretString) -> CriptorResult<ExportPayload> {
         use base64::Engine;
 
         let salt = base64::engine::general_purpose::STANDARD.decode(&self.salt)?;
@@ -91,7 +91,7 @@ impl ExportPackage {
 
         // 3. Deserialize
         let payload: ExportPayload = serde_json::from_slice(secret_plaintext.as_bytes())
-            .map_err(|e| crate::error::BovedaError::SerializationError(e.to_string()))?;
+            .map_err(|e| crate::error::CriptorError::SerializationError(e.to_string()))?;
 
         Ok(payload)
     }

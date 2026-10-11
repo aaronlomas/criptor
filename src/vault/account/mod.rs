@@ -1,32 +1,32 @@
 use crate::crypto;
 use crate::crypto::secret::SecretString;
-use crate::error::{BovedaError, BovedaResult};
+use crate::error::{CriptorError, CriptorResult};
 use crate::storage;
 use crate::vault::validation;
 
-impl super::BovedaEngine {
+impl super::CriptorEngine {
     /// Retrieves and decrypts all accounts in the vault.
-    pub async fn get_accounts(&self) -> BovedaResult<Vec<crate::storage::models::Account>> {
+    pub async fn get_accounts(&self) -> CriptorResult<Vec<crate::storage::models::Account>> {
         self.check_unlocked()?;
         let rows = storage::get_accounts(&self.db).await?;
         self.decrypt_rows(rows)
     }
 
     /// Retrieves and decrypts a page of accounts.
-    pub async fn get_accounts_paged(&self, limit: i64, offset: i64) -> BovedaResult<Vec<crate::storage::models::Account>> {
+    pub async fn get_accounts_paged(&self, limit: i64, offset: i64) -> CriptorResult<Vec<crate::storage::models::Account>> {
         self.check_unlocked()?;
         let rows = storage::get_accounts_paged(&self.db, limit, offset).await?;
         self.decrypt_rows(rows)
     }
 
     /// Helper to decrypt a batch of account rows.
-    fn decrypt_rows(&self, rows: Vec<crate::storage::AccountRow>) -> BovedaResult<Vec<crate::storage::models::Account>> {
+    fn decrypt_rows(&self, rows: Vec<crate::storage::AccountRow>) -> CriptorResult<Vec<crate::storage::models::Account>> {
         let mut accounts = Vec::with_capacity(rows.len());
         for row in rows {
             let (dec_site, dec_username) = self.with_key(|key| {
                 let s = crypto::decrypt(&row.site, key)?;
                 let u = crypto::decrypt(&row.username, key)?;
-                Ok::<_, BovedaError>((s, u))
+                Ok::<_, CriptorError>((s, u))
             })??;
 
             accounts.push(crate::storage::models::Account {
@@ -55,7 +55,7 @@ impl super::BovedaEngine {
         password: SecretString,
         recovery_code: Option<SecretString>,
         notes: Option<SecretString>,
-    ) -> BovedaResult<String> {
+    ) -> CriptorResult<String> {
         self.check_unlocked()?;
 
         validation::validate_string(site.as_str(), "Sitio", validation::MAX_SITE_LEN, true)?;
@@ -74,7 +74,7 @@ impl super::BovedaEngine {
             let p = crypto::encrypt(&password, key)?;
             let rc = recovery_code.as_ref().map(|rc| crypto::encrypt(rc, key)).transpose()?;
             let n = notes.as_ref().map(|n| crypto::encrypt(n, key)).transpose()?;
-            Ok::<_, BovedaError>((s, u, p, rc, n))
+            Ok::<_, CriptorError>((s, u, p, rc, n))
         })??;
 
         let id = storage::add_account(
@@ -92,12 +92,12 @@ impl super::BovedaEngine {
     }
 
     /// Decrypts a single ciphertext on-demand.
-    pub fn decrypt_secret(&self, ciphertext: &str) -> BovedaResult<SecretString> {
+    pub fn decrypt_secret(&self, ciphertext: &str) -> CriptorResult<SecretString> {
         self.with_key(|key| crypto::decrypt(ciphertext, key))?
     }
 
     /// Deletes an account by ID.
-    pub async fn delete_account(&self, id: &str) -> BovedaResult<()> {
+    pub async fn delete_account(&self, id: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
         self.log_audit(crate::audit::AuditAction::AccountDelete, Some(id)).await?;
         storage::delete_account(&self.db, id).await

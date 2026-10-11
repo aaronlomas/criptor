@@ -1,9 +1,9 @@
-use crate::error::{BovedaError, BovedaResult};
+use crate::error::{CriptorError, CriptorResult};
 use crate::storage;
 use crate::vault::validation;
 
-impl super::BovedaEngine {
-    pub async fn update_account_group(&self, id: &str, group_name: Option<&str>) -> BovedaResult<()> {
+impl super::CriptorEngine {
+    pub async fn update_account_group(&self, id: &str, group_name: Option<&str>) -> CriptorResult<()> {
         self.check_unlocked()?;
         self.log_audit(crate::audit::AuditAction::AccountGroupUpdate, Some(id)).await?;
         if let Some(name) = group_name {
@@ -12,7 +12,7 @@ impl super::BovedaEngine {
         storage::update_account_group(&self.db, id, group_name).await
     }
 
-    pub async fn rename_group(&self, old_name: &str, new_name: &str) -> BovedaResult<()> {
+    pub async fn rename_group(&self, old_name: &str, new_name: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
         validation::validate_string(new_name, "Grupo", validation::MAX_GROUP_NAME_LEN, true)?;
 
@@ -31,18 +31,18 @@ impl super::BovedaEngine {
         }
         
         let serialized = serde_json::to_string(&groups)
-            .map_err(|e| BovedaError::SerializationError(e.to_string()))?;
+            .map_err(|e| CriptorError::SerializationError(e.to_string()))?;
         storage::set_preference_tx(&mut tx, "groups", &serialized).await?;
         
         tx.commit().await?;
         Ok(())
     }
 
-    pub async fn delete_group(&self, name: &str) -> BovedaResult<()> {
+    pub async fn delete_group(&self, name: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
         let count = storage::count_accounts_in_group(&self.db, name).await?;
         if count > 0 {
-            return Err(BovedaError::Other(format!(
+            return Err(CriptorError::Other(format!(
                 "El grupo \"{}\" tiene {} cuenta(s) asignada(s). Mueve las cuentas antes de eliminarlo.",
                 name, count
             )));
@@ -59,7 +59,7 @@ impl super::BovedaEngine {
             
         groups.retain(|g| g != name);
         let serialized = serde_json::to_string(&groups)
-            .map_err(|e| BovedaError::SerializationError(e.to_string()))?;
+            .map_err(|e| CriptorError::SerializationError(e.to_string()))?;
         storage::set_preference_tx(&mut tx, "groups", &serialized).await?;
         
         tx.commit().await?;

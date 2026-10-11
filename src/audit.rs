@@ -1,7 +1,7 @@
 use crate::storage;
 use sqlx::SqlitePool;
 use serde::Serialize;
-use crate::error::BovedaResult;
+use crate::error::CriptorResult;
 
 
 #[derive(Debug, Serialize, Clone, Copy)]
@@ -57,6 +57,6 @@ pub async fn log_event(
     pool: &SqlitePool,
     action: AuditAction,
     metadata: Option<&str>,
-) -> BovedaResult<()> {
+) -> CriptorResult<()> {
     storage::add_audit_log(pool, action.as_str(), metadata).await
 }

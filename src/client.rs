@@ -11,12 +11,12 @@
 //! }
 //! ```
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use crate::crypto;
 use crate::crypto::secret::SecretString;
-use crate::vault::BovedaEngine;
+use crate::vault::CriptorEngine;
 
 mod account;
 mod group;
@@ -35,22 +35,37 @@ mod shell;
 /// Stateful client that owns the vault engine and tracks the session lock state.
 #[derive(Clone)]
 pub struct CriptorClient {
-    pub engine: Arc<Mutex<Option<BovedaEngine>>>,
+    pub engine: Arc<Mutex<Option<CriptorEngine>>>,
     pub session_verified: Arc<Mutex<bool>>,
     pub db_path: PathBuf,
+    /// Directory used for auxiliary files (unlock lock, background images).
+    pub base_dir: PathBuf,
 }
 
 impl CriptorClient {
+    /// Creates a client for the given vault database path. The directory holding
+    /// auxiliary files defaults to the database's parent directory.
     pub fn new(db_path: PathBuf) -> Self {
+        let base_dir = db_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
         Self {
             engine: Arc::new(Mutex::new(None)),
             session_verified: Arc::new(Mutex::new(false)),
             db_path,
+            base_dir,
         }
     }
 
+    /// Overrides the directory used for auxiliary files.
+    pub fn with_base_dir(mut self, base_dir: PathBuf) -> Self {
+        self.base_dir = base_dir;
+        self
+    }
+
     /// Returns the engine if the session is verified.
-    fn get_engine(&self) -> Result<BovedaEngine, String> {
+    fn get_engine(&self) -> Result<CriptorEngine, String> {
         let session_ok = *self.session_verified.lock().unwrap_or_else(|e| e.into_inner());
         if !session_ok {
             return Err("Session not verified. TOTP authentication required.".to_string());
@@ -61,31 +76,26 @@ impl CriptorClient {
     }
 
     /// Returns the engine without requiring session verification.
-    fn get_engine_unverified(&self) -> Result<BovedaEngine, String> {
+    fn get_engine_unverified(&self) -> Result<CriptorEngine, String> {
         let lock = self.engine.lock()
             .map_err(|e| format!("Vault lock poisoned: {}. Please restart the application.", e))?;
         lock.as_ref().cloned().ok_or_else(|| "Vault is locked".to_string())
     }
 
-    fn app_data_dir() -> PathBuf {
-        dirs_next::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("boveda")
-    }
-
-    pub fn vault_db_path() -> PathBuf {
-        Self::app_data_dir().join("vault.bvda")
+    /// Directory used for auxiliary vault files.
+    pub fn app_data_dir(&self) -> PathBuf {
+        self.base_dir.clone()
     }
 
     // Vault lifecycle ---------------------------------------------------------
 
     pub fn is_vault_initialized(&self) -> bool {
-        BovedaEngine::is_initialized(&self.db_path)
+        CriptorEngine::is_initialized(&self.db_path)
     }
 
     /// Unlocks the vault and returns either `"totp_required"` or `"unlocked"`.
     pub async fn unlock_vault(&self, password: SecretString) -> Result<String, String> {
-        let lock_file = Self::app_data_dir().join(".vault_unlock_lock");
+        let lock_file = self.app_data_dir().join(".vault_unlock_lock");
         let failed_unlock_str = std::fs::read_to_string(&lock_file)
             .ok()
             .and_then(|content| content.lines().next().map(|s| s.to_string()))
@@ -109,7 +119,7 @@ impl CriptorClient {
             }
         }
         
-        let engine = match BovedaEngine::unlock(&self.db_path, &password).await {
+        let engine = match CriptorEngine::unlock(&self.db_path, &password).await {
             Ok(e) => {
                 let _ = std::fs::remove_file(&lock_file);
                 e
@@ -121,7 +131,7 @@ impl CriptorClient {
                     .as_secs() as i64;
                 let new_attempts = (failed_attempts + 1).to_string();
                 let _ = std::fs::write(&lock_file, format!("{}:{}", new_attempts, now));
-                eprintln!("[SECURITY] Failed Bóveda unlock attempt: {}", e);
+                eprintln!("[SECURITY] Failed vault unlock attempt: {}", e);
                 return Err(e.to_string());
             }
         };
@@ -158,7 +168,7 @@ impl CriptorClient {
     /// Verifies the master password without unlocking or replacing the active vault session.
     /// The temporary engine is dropped immediately after the check.
     pub async fn verify_master_password(&self, password: SecretString) -> Result<bool, String> {
-        match BovedaEngine::unlock(&self.db_path, &password).await {
+        match CriptorEngine::unlock(&self.db_path, &password).await {
             Ok(engine) => {
                 engine.close().await;
                 Ok(true)
@@ -170,7 +180,7 @@ impl CriptorClient {
     /// Returns true if the vault is locked.
     ///
     /// Checks both the outer engine presence in CriptorClient and the inner master key
-    /// inside BovedaEngine, so that background guards that clear only the key
+    /// inside CriptorEngine, so that background guards that clear only the key
     /// are correctly reflected.
     pub fn is_locked(&self) -> bool {
         self.engine
@@ -184,7 +194,7 @@ impl CriptorClient {
 
     /// Deletes the vault files if the password is correct.
     pub async fn delete_vault(&self, password: SecretString) -> Result<(), String> {
-        let engine = BovedaEngine::unlock(&self.db_path, &password).await.map_err(|e| e.to_string())?;
+        let engine = CriptorEngine::unlock(&self.db_path, &password).await.map_err(|e| e.to_string())?;
         engine.close().await;
         self.lock_vault();
 
@@ -211,6 +221,6 @@ impl CriptorClient {
         engine
             .decrypt_secret(ciphertext)
             .map(|s: SecretString| s.as_str().to_string())
-            .map_err(|e: crate::BovedaError| e.to_string())
+            .map_err(|e: crate::CriptorError| e.to_string())
     }
 }

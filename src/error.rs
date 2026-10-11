@@ -1,11 +1,11 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum BovedaError {
-    #[error("Bóveda is locked")]
+pub enum CriptorError {
+    #[error("Vault is locked")]
     VaultLocked,
 
-    #[error("Remote session detected. Bóveda cannot be unlocked.")]
+    #[error("Remote session detected. The vault cannot be unlocked.")]
     RemoteSessionDetected,
 
     #[error("Incorrect password or corrupted file")]
@@ -42,9 +42,9 @@ pub enum BovedaError {
     Other(String),
 }
 
-pub type BovedaResult<T> = Result<T, BovedaError>;
+pub type CriptorResult<T> = Result<T, CriptorError>;
 
-impl From<sqlx::Error> for BovedaError {
+impl From<sqlx::Error> for CriptorError {
     fn from(e: sqlx::Error) -> Self {
         // SOC2: Avoid leaking database schema or technical details.
         // Log the real error internally if needed, but the public error is generic.
@@ -55,7 +55,7 @@ impl From<sqlx::Error> for BovedaError {
     }
 }
 
-impl From<std::io::Error> for BovedaError {
+impl From<std::io::Error> for CriptorError {
     fn from(e: std::io::Error) -> Self {
         // SOC2: Avoid leaking file paths or system structure.
         match e.kind() {
@@ -66,19 +66,19 @@ impl From<std::io::Error> for BovedaError {
     }
 }
 
-impl From<serde_json::Error> for BovedaError {
+impl From<serde_json::Error> for CriptorError {
     fn from(_: serde_json::Error) -> Self {
         Self::SerializationError("Error processing data format".to_string())
     }
 }
 
-impl From<base64::DecodeError> for BovedaError {
+impl From<base64::DecodeError> for CriptorError {
     fn from(_: base64::DecodeError) -> Self {
         Self::DecodeError("Format error in encoded string".to_string())
     }
 }
 
-impl From<anyhow::Error> for BovedaError {
+impl From<anyhow::Error> for CriptorError {
     fn from(_: anyhow::Error) -> Self {
         Self::Other("Internal system error".to_string())
     }
@@ -91,15 +91,15 @@ mod tests {
     #[test]
     fn test_error_conversions() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "test");
-        let bev_err: BovedaError = io_err.into();
+        let bev_err: CriptorError = io_err.into();
         assert!(format!("{}", bev_err).contains("File not found"));
 
         let b64_err = base64::DecodeError::InvalidByte(0, 0);
-        let bev_err: BovedaError = b64_err.into();
+        let bev_err: CriptorError = b64_err.into();
         assert!(format!("{}", bev_err).contains("Format error"));
 
         let json_err = serde_json::from_str::<serde_json::Value>("{").unwrap_err();
-        let bev_err: BovedaError = json_err.into();
+        let bev_err: CriptorError = json_err.into();
         assert!(format!("{}", bev_err).contains("Error processing data format"));
     }
 }

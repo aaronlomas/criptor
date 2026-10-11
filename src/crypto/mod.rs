@@ -7,7 +7,7 @@ use chacha20poly1305::{
 };
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use crate::error::{BovedaError, BovedaResult};
+use crate::error::{CriptorError, CriptorResult};
 use rand::{Rng, RngCore};
 use zeroize::Zeroize;
 use self::secret::{SecretKey, SecretString, SecretBytes};
@@ -19,14 +19,14 @@ pub const NONCE_LEN: usize = 12;
 pub const TAG_LEN: usize = 16;
 
 /// Returns a SecretKey (fixed-size array) to prevent leaving copies on the stack/heap.
-pub fn derive_key(password: &SecretString, salt: &[u8]) -> BovedaResult<SecretKey> {
+pub fn derive_key(password: &SecretString, salt: &[u8]) -> CriptorResult<SecretKey> {
     let params = Params::new(
         ARGON2_M_COST, // memory (KiB)
         ARGON2_T_COST, // iterations
         ARGON2_P_COST, // parallelism
         Some(32),
     )
-    .map_err(|e| BovedaError::CryptoError(format!("Argon2 params error: {e}")))?;
+    .map_err(|e| CriptorError::CryptoError(format!("Argon2 params error: {e}")))?;
 
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let mut key = SecretKey::new([0u8; 32]);
@@ -34,7 +34,7 @@ pub fn derive_key(password: &SecretString, salt: &[u8]) -> BovedaResult<SecretKe
         .hash_password_into(password.as_str().as_bytes(), salt, key.as_mut_bytes())
         .map_err(|e| {
             // key will be automatically zeroized upon drop if error occurs
-            BovedaError::CryptoError(format!("Argon2 KDF error: {e}"))
+            CriptorError::CryptoError(format!("Argon2 KDF error: {e}"))
         })?;
     Ok(key)
 }
@@ -42,14 +42,14 @@ pub fn derive_key(password: &SecretString, salt: &[u8]) -> BovedaResult<SecretKe
 // AEAD Encryption/Decryption---------------------------------------------------------------------
 /// Encrypt `plaintext` with ChaCha20-Poly1305 using `key`.
 /// Returns Base64(nonce || ciphertext_with_tag).
-pub fn encrypt(plaintext: &SecretString, key: &SecretKey) -> BovedaResult<String> {
+pub fn encrypt(plaintext: &SecretString, key: &SecretKey) -> CriptorResult<String> {
     let chacha_key = Key::from_slice(key.as_bytes());
     let cipher = ChaCha20Poly1305::new(chacha_key);
     let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng); // 96-bit random nonce
 
     let ciphertext = cipher
         .encrypt(&nonce, plaintext.as_str().as_bytes())
-        .map_err(|e| BovedaError::CryptoError(format!("ChaCha20Poly1305 encrypt error: {e}")))?;
+        .map_err(|e| CriptorError::CryptoError(format!("ChaCha20Poly1305 encrypt error: {e}")))?;
 
     // Concat nonce (12 bytes) + ciphertext+tag
     let mut payload = nonce.to_vec();
@@ -60,10 +60,10 @@ pub fn encrypt(plaintext: &SecretString, key: &SecretKey) -> BovedaResult<String
 
 /// Decrypt a Base64-encoded ChaCha20-Poly1305 blob produced by `encrypt`.
 /// Returns a `SecretString` to ensure the plaintext is zeroized on drop.
-pub fn decrypt(encoded: &str, key: &SecretKey) -> BovedaResult<SecretString> {
+pub fn decrypt(encoded: &str, key: &SecretKey) -> CriptorResult<SecretString> {
     let payload = B64.decode(encoded)?;
     if payload.len() < NONCE_LEN {
-        return Err(BovedaError::CryptoError("Ciphertext too short".to_string()));
+        return Err(CriptorError::CryptoError("Ciphertext too short".to_string()));
     }
 
     let (nonce_bytes, ciphertext) = payload.split_at(NONCE_LEN);
@@ -74,12 +74,12 @@ pub fn decrypt(encoded: &str, key: &SecretKey) -> BovedaResult<SecretString> {
 
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
-        .map_err(|e| BovedaError::CryptoError(format!("ChaCha20Poly1305 decrypt error: {e}")))?;
+        .map_err(|e| CriptorError::CryptoError(format!("ChaCha20Poly1305 decrypt error: {e}")))?;
 
     let result = String::from_utf8(plaintext).map_err(|e| {
         let mut err_bytes = e.into_bytes();
         err_bytes.zeroize();
-        BovedaError::DecodeError("UTF-8 error".to_string())
+        CriptorError::DecodeError("UTF-8 error".to_string())
     })?;
     
     Ok(SecretString::new(result))
@@ -87,7 +87,7 @@ pub fn decrypt(encoded: &str, key: &SecretKey) -> BovedaResult<SecretString> {
 
 /// Lower-level encryption for binary data.
 /// Returns (ciphertext, nonce).
-pub fn encrypt_raw(plaintext: &[u8], key: &SecretKey) -> BovedaResult<(Vec<u8>, [u8; 12])> {
+pub fn encrypt_raw(plaintext: &[u8], key: &SecretKey) -> CriptorResult<(Vec<u8>, [u8; 12])> {
     let chacha_key = Key::from_slice(key.as_bytes());
     let cipher = ChaCha20Poly1305::new(chacha_key);
     let mut nonce_bytes = [0u8; 12];
@@ -96,21 +96,21 @@ pub fn encrypt_raw(plaintext: &[u8], key: &SecretKey) -> BovedaResult<(Vec<u8>, 
 
     let ciphertext = cipher
         .encrypt(nonce, plaintext)
-        .map_err(|e| BovedaError::CryptoError(format!("ChaCha20Poly1305 encrypt error: {e}")))?;
+        .map_err(|e| CriptorError::CryptoError(format!("ChaCha20Poly1305 encrypt error: {e}")))?;
 
     Ok((ciphertext, nonce_bytes))
 }
 
 /// Lower-level decryption for binary data.
 /// Returns SecretBytes to ensure the plaintext is zeroized on drop.
-pub fn decrypt_raw(ciphertext: &[u8], nonce: &[u8], key: &SecretKey) -> BovedaResult<SecretBytes> {
+pub fn decrypt_raw(ciphertext: &[u8], nonce: &[u8], key: &SecretKey) -> CriptorResult<SecretBytes> {
     let chacha_key = Key::from_slice(key.as_bytes());
     let cipher = ChaCha20Poly1305::new(chacha_key);
     let nonce = Nonce::from_slice(nonce);
 
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
-        .map_err(|e| BovedaError::CryptoError(format!("ChaCha20Poly1305 decrypt error: {e}")))?;
+        .map_err(|e| CriptorError::CryptoError(format!("ChaCha20Poly1305 decrypt error: {e}")))?;
 
     Ok(SecretBytes::new(plaintext))
 }
@@ -120,7 +120,7 @@ pub fn decrypt_raw(ciphertext: &[u8], nonce: &[u8], key: &SecretKey) -> BovedaRe
 /// Generates a random secure password of `length` characters.
 /// Includes symbols and numbers.
 #[must_use = "The generated password must be used or stored securely."]
-pub fn generate_password(length: usize, include_symbols: bool) -> BovedaResult<SecretString> {
+pub fn generate_password(length: usize, include_symbols: bool) -> CriptorResult<SecretString> {
     let mut rng = OsRng;
 
     let lowercase = b"abcdefghijklmnopqrstuvwxyz";
@@ -162,7 +162,7 @@ pub fn generate_password(length: usize, include_symbols: bool) -> BovedaResult<S
         let mut b = e.into_bytes();
         use zeroize::Zeroize;
         b.zeroize();
-        BovedaError::DecodeError("Error generating password string".to_string())
+        CriptorError::DecodeError("Error generating password string".to_string())
     });
 
     // SEC-H2: Return error instead of predecible fallback. Let caller handle the error.
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn test_encrypt_decrypt_success() {
         let key = SecretKey::new([42u8; 32]);
-        let plaintext = SecretString::new("Hello, Bóveda!".to_string());
+        let plaintext = SecretString::new("Hello, Criptor!".to_string());
         let ciphertext = encrypt(&plaintext, &key).unwrap();
         assert_ne!(plaintext.as_str(), ciphertext); // Not plaintext
         
@@ -205,7 +205,7 @@ mod tests {
     fn test_decrypt_wrong_key_fails() {
         let key1 = SecretKey::new([42u8; 32]);
         let key2 = SecretKey::new([43u8; 32]);
-        let plaintext = SecretString::new("Hello, Bóveda!".to_string());
+        let plaintext = SecretString::new("Hello, Criptor!".to_string());
         let ciphertext = encrypt(&plaintext, &key1).unwrap();
         
         let result = decrypt(&ciphertext, &key2);
@@ -215,7 +215,7 @@ mod tests {
     #[test]
     fn test_decrypt_tampered_ciphertext_fails() {
         let key = SecretKey::new([42u8; 32]);
-        let plaintext = SecretString::new("Hello, Bóveda!".to_string());
+        let plaintext = SecretString::new("Hello, Criptor!".to_string());
         let mut ciphertext = encrypt(&plaintext, &key).unwrap();
         
         // Corrupt the base64 string
@@ -262,7 +262,7 @@ mod tests {
         let too_short = B64.encode(vec![0u8; 11]);
         let result = decrypt(&too_short, &key);
         assert!(result.is_err());
-        if let Err(BovedaError::CryptoError(msg)) = result {
+        if let Err(CriptorError::CryptoError(msg)) = result {
             assert!(msg.contains("too short"));
         }
     }

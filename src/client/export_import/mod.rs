@@ -2,8 +2,8 @@ use crate::crypto::secret::SecretString;
 use crate::vault::ImportStrategy;
 
 impl super::CriptorClient {
-	pub async fn export_db(dest_path: &str) -> Result<(), String> {
-		let db_path = Self::vault_db_path();
+	pub async fn export_db(&self, dest_path: &str) -> Result<(), String> {
+		let db_path = self.db_path.clone();
 		let salt_path = db_path.with_file_name("vault.salt");
 
 		let dest_db = std::path::Path::new(dest_path);
@@ -75,7 +75,7 @@ impl super::CriptorClient {
 			return Err("The source file does not exist".to_string());
 		}
 
-		let db_path = Self::vault_db_path();
+		let db_path = self.db_path.clone();
 		if src == db_path {
 			return Err(
 				"Cannot import the same file the app is using. Use 'Export' for backups."

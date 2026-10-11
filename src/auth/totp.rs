@@ -1,5 +1,5 @@
 use crate::crypto::secret::SecretBytes;
-use crate::error::BovedaResult;
+use crate::error::CriptorResult;
 use totp_rs::{Algorithm, TOTP};
 use serde::{Serialize, Deserialize};
 use base64::Engine;
@@ -25,7 +25,7 @@ impl TotpManager {
     }
 
     /// Creates a TOTP instance from the given secret bytes.
-    fn create_totp(secret: &SecretBytes) -> BovedaResult<TOTP> {
+    fn create_totp(secret: &SecretBytes) -> CriptorResult<TOTP> {
         let secret_bytes = secret.as_bytes();
         let seed = Zeroizing::new(secret_bytes.to_vec());
         
@@ -35,35 +35,35 @@ impl TotpManager {
             1,
             30,
             seed.to_vec(),
-            Some("Bóveda".to_string()),
+            Some("Criptor".to_string()),
             "vault".to_string(),
-        ).map_err(|e| crate::error::BovedaError::CryptoError(format!("TOTP init error: {e}")))
+        ).map_err(|e| crate::error::CriptorError::CryptoError(format!("TOTP init error: {e}")))
     }
 
     /// Generates the otpauth URL for QR codes.
-    pub fn get_otpauth_url(secret: &SecretBytes) -> BovedaResult<String> {
+    pub fn get_otpauth_url(secret: &SecretBytes) -> CriptorResult<String> {
         let totp = Self::create_totp(secret)?;
         Ok(totp.get_url())
     }
 
     /// Generates the QR code PNG as a base64 string.
-    pub fn generate_qr_png_b64(secret: &SecretBytes) -> BovedaResult<String> {
+    pub fn generate_qr_png_b64(secret: &SecretBytes) -> CriptorResult<String> {
         let url = Self::get_otpauth_url(secret)?;
         let code = qrcode::QrCode::new(url.as_bytes())
-            .map_err(|e| crate::error::BovedaError::CryptoError(format!("QR generation error: {e}")))?;
+            .map_err(|e| crate::error::CriptorError::CryptoError(format!("QR generation error: {e}")))?;
             
         let image = code.render::<image::Luma<u8>>().build();
         
         let mut png_bytes = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
         image.write_with_encoder(encoder)
-            .map_err(|e| crate::error::BovedaError::CryptoError(format!("PNG encoding error: {e}")))?;
+            .map_err(|e| crate::error::CriptorError::CryptoError(format!("PNG encoding error: {e}")))?;
         
         Ok(base64::engine::general_purpose::STANDARD.encode(&png_bytes))
     }
 
     /// Verifies the 6-digit TOTP code.
-    pub fn verify(secret: &SecretBytes, code: &str) -> BovedaResult<bool> {
+    pub fn verify(secret: &SecretBytes, code: &str) -> CriptorResult<bool> {
         let totp = Self::create_totp(secret)?;
         Ok(totp.check_current(code).unwrap_or(false))
     }

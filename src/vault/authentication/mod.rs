@@ -7,10 +7,10 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use crate::crypto::secret::{SecretKey, SecretString};
 use crate::crypto;
 use crate::storage;
-use crate::error::{BovedaError, BovedaResult};
-use super::{BovedaEngine, MasterKey};
+use crate::error::{CriptorError, CriptorResult};
+use super::{CriptorEngine, MasterKey};
 
-impl BovedaEngine {
+impl CriptorEngine {
     /// Returns true if the vault database or its salt file exists.
     pub fn is_initialized(db_path: &Path) -> bool {
         let salt_path = db_path.with_file_name("vault.salt");
@@ -29,16 +29,16 @@ impl BovedaEngine {
 
     /// Unlocks the vault. Derives key from salt and password, then opens encrypted database.
     /// On first use (no salt exists), generates and saves a new 32-byte salt.
-    pub async fn unlock(db_path: &Path, password: &SecretString) -> BovedaResult<Self> {
+    pub async fn unlock(db_path: &Path, password: &SecretString) -> CriptorResult<Self> {
         let salt_path = db_path.with_file_name("vault.salt");
 
         let salt = if salt_path.exists() {
-            std::fs::read(&salt_path).map_err(|e| BovedaError::IoError(format!("Failed to read vault salt: {}", e)))?
+            std::fs::read(&salt_path).map_err(|e| CriptorError::IoError(format!("Failed to read vault salt: {}", e)))?
         } else {
             use rand::RngCore;
             let mut new_salt = vec![0u8; 32];
             rand::rngs::OsRng.fill_bytes(&mut new_salt);
-            std::fs::write(&salt_path, &new_salt).map_err(|e| BovedaError::IoError(format!("Failed to write vault salt: {}", e)))?;
+            std::fs::write(&salt_path, &new_salt).map_err(|e| CriptorError::IoError(format!("Failed to write vault salt: {}", e)))?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -48,11 +48,11 @@ impl BovedaEngine {
             {
                 // On Windows, std::fs::Permissions can only control the read-only attribute.
                 // We mark vault.salt as read-only to prevent accidental modification.
-                // Security: Bóveda stores its data in the user's LocalAppData folder
+                // Security: the vault data is stored in the user's LocalAppData folder
                 // (e.g., C:\Users\<User>\AppData\Local\...), which by default inherits ACLs
                 // that restrict access strictly to the current user profile and administrators.
                 let mut perms = std::fs::metadata(&salt_path)
-                    .map_err(|e| BovedaError::IoError(format!("Failed to read salt metadata: {}", e)))?
+                    .map_err(|e| CriptorError::IoError(format!("Failed to read salt metadata: {}", e)))?
                     .permissions();
                 perms.set_readonly(true);
                 let _ = std::fs::set_permissions(&salt_path, perms);
@@ -64,15 +64,15 @@ impl BovedaEngine {
         let key = crypto::derive_key(password, &salt)?;
 
         let engine = Self::open_encrypted(db_path, &key).await
-            .map_err(|_| BovedaError::InvalidPassword)?;
+            .map_err(|_| CriptorError::InvalidPassword)?;
 
         // Verify the key by initializing schema (if key is wrong, this will fail)
-        storage::init_db(&engine.db).await.map_err(|_| BovedaError::InvalidPassword)?;
+        storage::init_db(&engine.db).await.map_err(|_| CriptorError::InvalidPassword)?;
 
         // Store the master key in the engine
         {
             let mut key_lock = engine.master_key.lock()
-                .map_err(|_| BovedaError::Other("Vault lock poisoned".to_string()))?;
+                .map_err(|_| CriptorError::Other("Vault lock poisoned".to_string()))?;
             *key_lock = Some(MasterKey::new(key));
         }
 
@@ -82,7 +82,7 @@ impl BovedaEngine {
                 if crate::security::environment_check() {
                     let _ = engine.log_audit(crate::audit::AuditAction::VaultUnlock, Some("Blocked: Remote Session Detected")).await;
                     engine.lock(); // Lock it back immediately
-                    return Err(BovedaError::RemoteSessionDetected);
+                    return Err(CriptorError::RemoteSessionDetected);
                 } else {
                     // Spawn a background task to monitor for remote sessions actively
                     let master_key_clone = Arc::clone(&engine.master_key);
@@ -123,7 +123,7 @@ impl BovedaEngine {
     }
 
     /// Opens an **unencrypted** SQLite database. **FOR TESTING ONLY**.
-    pub async fn open_unencrypted(db_path: &Path) -> BovedaResult<Self> {
+    pub async fn open_unencrypted(db_path: &Path) -> CriptorResult<Self> {
         let url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
@@ -152,7 +152,7 @@ impl BovedaEngine {
     }
 
     /// Opens the database utilizing SQLCipher with the derived key.
-    pub async fn open_encrypted(db_path: &Path, key: &SecretKey) -> BovedaResult<Self> {
+    pub async fn open_encrypted(db_path: &Path, key: &SecretKey) -> CriptorResult<Self> {
         let url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
         let mut options = SqliteConnectOptions::from_str(&url)?;
         
@@ -186,7 +186,7 @@ impl BovedaEngine {
             .await?;
         
         if cipher_version.is_none() || cipher_version.as_ref().unwrap().0.trim().is_empty() {
-            return Err(BovedaError::Other(
+            return Err(CriptorError::Other(
                 "CRITICAL: SQLCipher is not correctly linked or configured. \
                  Falling back to standard SQLite is prohibited for security reasons.".to_string()
             ));
@@ -206,14 +206,14 @@ impl BovedaEngine {
     }
 
     /// Logs an action to the persistent audit log.
-    pub async fn log_audit(&self, action: crate::audit::AuditAction, metadata: Option<&str>) -> BovedaResult<()> {
+    pub async fn log_audit(&self, action: crate::audit::AuditAction, metadata: Option<&str>) -> CriptorResult<()> {
         crate::storage::add_audit_log(&self.db, action.as_str(), metadata).await
     }
 
     /// Internal helper to check if unlocked and return error if not.
-    pub(crate) fn check_unlocked(&self) -> BovedaResult<()> {
+    pub(crate) fn check_unlocked(&self) -> CriptorResult<()> {
         if self.is_locked() {
-            Err(BovedaError::VaultLocked)
+            Err(CriptorError::VaultLocked)
         } else {
             Ok(())
         }
@@ -221,15 +221,15 @@ impl BovedaEngine {
 
     /// Internal helper to execute a closure with the master key if unlocked.
     /// Lends `&SecretKey` directly from the heap-pinned, mlock'd `MasterKey`
-    pub(crate) fn with_key<F, R>(&self, f: F) -> BovedaResult<R>
+    pub(crate) fn with_key<F, R>(&self, f: F) -> CriptorResult<R>
     where
         F: FnOnce(&SecretKey) -> R,
     {
         let lock = self.master_key.lock()
-            .map_err(|_| BovedaError::Other("Vault lock poisoned".to_string()))?;
+            .map_err(|_| CriptorError::Other("Vault lock poisoned".to_string()))?;
 
         lock.as_ref()
             .map(|mk| f(mk.as_secret_key()))
-            .ok_or(BovedaError::VaultLocked)
+            .ok_or(CriptorError::VaultLocked)
     }
 }

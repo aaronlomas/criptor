@@ -1,13 +1,13 @@
 // Export & Import-------------------------------------------------------------------------
 
 use crate::crypto::secret::SecretString;
-use crate::error::{BovedaError, BovedaResult};
+use crate::error::{CriptorError, CriptorResult};
 use crate::storage;
-use super::{BovedaEngine, ImportStrategy, export};
+use super::{CriptorEngine, ImportStrategy, export};
 
-impl BovedaEngine {
+impl CriptorEngine {
     /// Exports the entire vault into a secure, encrypted package.
-    pub async fn export_vault(&self, export_password: &SecretString) -> BovedaResult<String> {
+    pub async fn export_vault(&self, export_password: &SecretString) -> CriptorResult<String> {
         self.check_unlocked()?;
         self.log_audit(crate::audit::AuditAction::VaultExport, None).await?;
         
@@ -91,11 +91,11 @@ impl BovedaEngine {
         
         // 4. Serialize package to JSON
         serde_json::to_string(&package)
-            .map_err(|e| BovedaError::SerializationError(e.to_string()))
+            .map_err(|e| CriptorError::SerializationError(e.to_string()))
     }
 
     /// Imports a secure package into the current vault using the specified strategy.
-    pub async fn import_vault(&self, package_json: &str, export_password: &SecretString, strategy: ImportStrategy) -> BovedaResult<()> {
+    pub async fn import_vault(&self, package_json: &str, export_password: &SecretString, strategy: ImportStrategy) -> CriptorResult<()> {
         self.check_unlocked()?;
         self.log_audit(crate::audit::AuditAction::VaultImport, Some(match strategy {
             ImportStrategy::Merge => "merge",
@@ -104,11 +104,11 @@ impl BovedaEngine {
 
         // 1. Parse and decrypt package
         let package: export::ExportPackage = serde_json::from_str(package_json)
-            .map_err(|e| BovedaError::SerializationError(e.to_string()))?;
+            .map_err(|e| CriptorError::SerializationError(e.to_string()))?;
         
         // SEC-6: Strictly validate version
         if package.version != 1 {
-            return Err(BovedaError::Other(format!("Versión de paquete no soportada: {}", package.version)));
+            return Err(CriptorError::Other(format!("Versión de paquete no soportada: {}", package.version)));
         }
         
         let payload = package.decrypt(export_password)?;

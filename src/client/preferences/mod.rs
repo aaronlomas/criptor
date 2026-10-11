@@ -4,7 +4,7 @@ impl super::CriptorClient {
         engine
             .get_preference(key)
             .await
-            .map_err(|e: crate::BovedaError| e.to_string())
+            .map_err(|e: crate::CriptorError| e.to_string())
     }
 
     pub async fn set_preference(&self, key: &str, value: Option<String>) -> Result<(), String> {
@@ -13,11 +13,11 @@ impl super::CriptorClient {
             Some(v) => engine
                 .set_preference(key, &v)
                 .await
-                .map_err(|e: crate::BovedaError| e.to_string()),
+                .map_err(|e: crate::CriptorError| e.to_string()),
             None => engine
                 .delete_preference(key)
                 .await
-                .map_err(|e: crate::BovedaError| e.to_string()),
+                .map_err(|e: crate::CriptorError| e.to_string()),
         }
     }
 }
