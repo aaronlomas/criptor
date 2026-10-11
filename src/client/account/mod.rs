@@ -16,7 +16,11 @@ impl super::CriptorClient {
         } else {
             Some(recovery_code)
         };
-        let notes_opt = if notes.as_str().is_empty() { None } else { Some(notes) };
+        let notes_opt = if notes.as_str().is_empty() {
+            None
+        } else {
+            Some(notes)
+        };
         engine
             .add_account(site, username, password, recovery_opt, notes_opt)
             .await

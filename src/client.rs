@@ -19,16 +19,16 @@ use crate::crypto::secret::SecretString;
 use crate::vault::CriptorEngine;
 
 mod account;
+mod audit_log;
+mod export_import;
 mod group;
 mod pin;
-mod export_import;
-mod audit_log;
 pub use audit_log::AuditLogView;
-mod preferences;
-mod utilities;
-mod totp;
 mod document;
+mod preferences;
 mod shell;
+mod totp;
+mod utilities;
 
 // ─── CriptorClient ─────────────────────────────────────────────────────────────────
 
@@ -66,20 +66,35 @@ impl CriptorClient {
 
     /// Returns the engine if the session is verified.
     fn get_engine(&self) -> Result<CriptorEngine, String> {
-        let session_ok = *self.session_verified.lock().unwrap_or_else(|e| e.into_inner());
+        let session_ok = *self
+            .session_verified
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if !session_ok {
             return Err("Session not verified. TOTP authentication required.".to_string());
         }
-        let lock = self.engine.lock()
-            .map_err(|e| format!("Vault lock poisoned: {}. Please restart the application.", e))?;
-        lock.as_ref().cloned().ok_or_else(|| "Vault is locked".to_string())
+        let lock = self.engine.lock().map_err(|e| {
+            format!(
+                "Vault lock poisoned: {}. Please restart the application.",
+                e
+            )
+        })?;
+        lock.as_ref()
+            .cloned()
+            .ok_or_else(|| "Vault is locked".to_string())
     }
 
     /// Returns the engine without requiring session verification.
     fn get_engine_unverified(&self) -> Result<CriptorEngine, String> {
-        let lock = self.engine.lock()
-            .map_err(|e| format!("Vault lock poisoned: {}. Please restart the application.", e))?;
-        lock.as_ref().cloned().ok_or_else(|| "Vault is locked".to_string())
+        let lock = self.engine.lock().map_err(|e| {
+            format!(
+                "Vault lock poisoned: {}. Please restart the application.",
+                e
+            )
+        })?;
+        lock.as_ref()
+            .cloned()
+            .ok_or_else(|| "Vault is locked".to_string())
     }
 
     /// Directory used for auxiliary vault files.
@@ -100,17 +115,23 @@ impl CriptorClient {
             .ok()
             .and_then(|content| content.lines().next().map(|s| s.to_string()))
             .unwrap_or_else(|| "0:0".to_string());
-        
+
         let parts: Vec<&str> = failed_unlock_str.split(':').collect();
-        let failed_attempts = parts.first().and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
-        let last_fail_ts = parts.get(1).and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
-        
+        let failed_attempts = parts
+            .first()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0);
+        let last_fail_ts = parts
+            .get(1)
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+
         if failed_attempts >= 10 {
             let now = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs() as i64;
-            
+
             if now - last_fail_ts < 3600 {
                 return Err(format!(
                     "Too many failed unlock attempts. Please try again in {} seconds.",
@@ -118,7 +139,7 @@ impl CriptorClient {
                 ));
             }
         }
-        
+
         let engine = match CriptorEngine::unlock(&self.db_path, &password).await {
             Ok(e) => {
                 let _ = std::fs::remove_file(&lock_file);
@@ -138,7 +159,9 @@ impl CriptorClient {
 
         let is_totp = engine.is_totp_enabled().await.unwrap_or(false);
 
-        let mut engine_lock = self.engine.lock()
+        let mut engine_lock = self
+            .engine
+            .lock()
             .map_err(|e| format!("Vault lock poisoned: {}", e))?;
         *engine_lock = Some(engine);
 
@@ -194,7 +217,9 @@ impl CriptorClient {
 
     /// Deletes the vault files if the password is correct.
     pub async fn delete_vault(&self, password: SecretString) -> Result<(), String> {
-        let engine = CriptorEngine::unlock(&self.db_path, &password).await.map_err(|e| e.to_string())?;
+        let engine = CriptorEngine::unlock(&self.db_path, &password)
+            .await
+            .map_err(|e| e.to_string())?;
         engine.close().await;
         self.lock_vault();
 
@@ -216,7 +241,9 @@ impl CriptorClient {
     /// Decrypts a single secret field.
     pub async fn decrypt_secret(&self, ciphertext: &str) -> Result<String, String> {
         let engine = self.get_engine()?;
-        let _ = engine.log_audit(crate::audit::AuditAction::SecretAccess, Some(ciphertext)).await;
+        let _ = engine
+            .log_audit(crate::audit::AuditAction::SecretAccess, Some(ciphertext))
+            .await;
 
         engine
             .decrypt_secret(ciphertext)

@@ -60,7 +60,9 @@ impl From<std::io::Error> for CriptorError {
         // SOC2: Avoid leaking file paths or system structure.
         match e.kind() {
             std::io::ErrorKind::NotFound => Self::NotFound("File not found".to_string()),
-            std::io::ErrorKind::PermissionDenied => Self::CryptoError("Permission denied to access data".to_string()),
+            std::io::ErrorKind::PermissionDenied => {
+                Self::CryptoError("Permission denied to access data".to_string())
+            }
             _ => Self::IoError("Disk access error".to_string()),
         }
     }

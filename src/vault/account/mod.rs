@@ -13,14 +13,21 @@ impl super::CriptorEngine {
     }
 
     /// Retrieves and decrypts a page of accounts.
-    pub async fn get_accounts_paged(&self, limit: i64, offset: i64) -> CriptorResult<Vec<crate::storage::models::Account>> {
+    pub async fn get_accounts_paged(
+        &self,
+        limit: i64,
+        offset: i64,
+    ) -> CriptorResult<Vec<crate::storage::models::Account>> {
         self.check_unlocked()?;
         let rows = storage::get_accounts_paged(&self.db, limit, offset).await?;
         self.decrypt_rows(rows)
     }
 
     /// Helper to decrypt a batch of account rows.
-    fn decrypt_rows(&self, rows: Vec<crate::storage::AccountRow>) -> CriptorResult<Vec<crate::storage::models::Account>> {
+    fn decrypt_rows(
+        &self,
+        rows: Vec<crate::storage::AccountRow>,
+    ) -> CriptorResult<Vec<crate::storage::models::Account>> {
         let mut accounts = Vec::with_capacity(rows.len());
         for row in rows {
             let (dec_site, dec_username) = self.with_key(|key| {
@@ -59,23 +66,45 @@ impl super::CriptorEngine {
         self.check_unlocked()?;
 
         validation::validate_string(site.as_str(), "Sitio", validation::MAX_SITE_LEN, true)?;
-        validation::validate_string(username.as_str(), "Usuario", validation::MAX_USERNAME_LEN, true)?;
-        validation::validate_string(password.as_str(), "Contraseña", validation::MAX_PASSWORD_LEN, true)?;
+        validation::validate_string(
+            username.as_str(),
+            "Usuario",
+            validation::MAX_USERNAME_LEN,
+            true,
+        )?;
+        validation::validate_string(
+            password.as_str(),
+            "Contraseña",
+            validation::MAX_PASSWORD_LEN,
+            true,
+        )?;
         if let Some(rc) = &recovery_code {
-            validation::validate_string(rc.as_str(), "Código de recuperación", validation::MAX_PASSWORD_LEN, false)?;
+            validation::validate_string(
+                rc.as_str(),
+                "Código de recuperación",
+                validation::MAX_PASSWORD_LEN,
+                false,
+            )?;
         }
         if let Some(n) = &notes {
             validation::validate_string(n.as_str(), "Notas", validation::MAX_NOTES_LEN, false)?;
         }
 
-        let (enc_site, enc_username, enc_password, enc_recovery_code, enc_notes) = self.with_key(|key| {
-            let s = crypto::encrypt(&site, key)?;
-            let u = crypto::encrypt(&username, key)?;
-            let p = crypto::encrypt(&password, key)?;
-            let rc = recovery_code.as_ref().map(|rc| crypto::encrypt(rc, key)).transpose()?;
-            let n = notes.as_ref().map(|n| crypto::encrypt(n, key)).transpose()?;
-            Ok::<_, CriptorError>((s, u, p, rc, n))
-        })??;
+        let (enc_site, enc_username, enc_password, enc_recovery_code, enc_notes) =
+            self.with_key(|key| {
+                let s = crypto::encrypt(&site, key)?;
+                let u = crypto::encrypt(&username, key)?;
+                let p = crypto::encrypt(&password, key)?;
+                let rc = recovery_code
+                    .as_ref()
+                    .map(|rc| crypto::encrypt(rc, key))
+                    .transpose()?;
+                let n = notes
+                    .as_ref()
+                    .map(|n| crypto::encrypt(n, key))
+                    .transpose()?;
+                Ok::<_, CriptorError>((s, u, p, rc, n))
+            })??;
 
         let id = storage::add_account(
             &self.db,
@@ -85,9 +114,11 @@ impl super::CriptorEngine {
             enc_recovery_code.as_deref(),
             enc_notes.as_deref(),
             None,
-        ).await?;
+        )
+        .await?;
 
-        self.log_audit(crate::audit::AuditAction::AccountCreate, Some(&id)).await?;
+        self.log_audit(crate::audit::AuditAction::AccountCreate, Some(&id))
+            .await?;
         Ok(id)
     }
 
@@ -99,7 +130,8 @@ impl super::CriptorEngine {
     /// Deletes an account by ID.
     pub async fn delete_account(&self, id: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
-        self.log_audit(crate::audit::AuditAction::AccountDelete, Some(id)).await?;
+        self.log_audit(crate::audit::AuditAction::AccountDelete, Some(id))
+            .await?;
         storage::delete_account(&self.db, id).await
     }
 }

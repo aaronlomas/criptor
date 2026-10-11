@@ -42,10 +42,18 @@ impl super::CriptorClient {
         engine.delete_document(id).await.map_err(|e| e.to_string())
     }
 
-    pub async fn decrypt_document_content(&self, encrypted_content: &str) -> Result<String, String> {
+    pub async fn decrypt_document_content(
+        &self,
+        encrypted_content: &str,
+    ) -> Result<String, String> {
         let engine = self.get_engine()?;
         // SEC: Log access to decrypted document content
-        let _ = engine.log_audit(crate::audit::AuditAction::SecretAccess, Some("document_content")).await;
+        let _ = engine
+            .log_audit(
+                crate::audit::AuditAction::SecretAccess,
+                Some("document_content"),
+            )
+            .await;
         engine
             .decrypt_document_content(encrypted_content)
             .map_err(|e| e.to_string())

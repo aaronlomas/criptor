@@ -1,9 +1,9 @@
 // Account persistence. All secret columns hold ciphertext produced by the vault layer.
 
+use crate::error::CriptorResult;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use crate::error::CriptorResult;
 
 /// A row from the `accounts` table as returned to the frontend.
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]
@@ -66,7 +66,11 @@ pub async fn get_accounts(pool: &SqlitePool) -> CriptorResult<Vec<AccountRow>> {
 }
 
 /// Fetches a page of account rows ordered by site.
-pub async fn get_accounts_paged(pool: &SqlitePool, limit: i64, offset: i64) -> CriptorResult<Vec<AccountRow>> {
+pub async fn get_accounts_paged(
+    pool: &SqlitePool,
+    limit: i64,
+    offset: i64,
+) -> CriptorResult<Vec<AccountRow>> {
     let rows = sqlx::query_as::<_, AccountRow>(
         r"SELECT id, site, username, encrypted_password, encrypted_recovery_code,
                   encrypted_notes, favicon_url, group_name, created_at, updated_at

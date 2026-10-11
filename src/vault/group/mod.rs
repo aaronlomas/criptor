@@ -3,9 +3,14 @@ use crate::storage;
 use crate::vault::validation;
 
 impl super::CriptorEngine {
-    pub async fn update_account_group(&self, id: &str, group_name: Option<&str>) -> CriptorResult<()> {
+    pub async fn update_account_group(
+        &self,
+        id: &str,
+        group_name: Option<&str>,
+    ) -> CriptorResult<()> {
         self.check_unlocked()?;
-        self.log_audit(crate::audit::AuditAction::AccountGroupUpdate, Some(id)).await?;
+        self.log_audit(crate::audit::AuditAction::AccountGroupUpdate, Some(id))
+            .await?;
         if let Some(name) = group_name {
             validation::validate_string(name, "Grupo", validation::MAX_GROUP_NAME_LEN, true)?;
         }
@@ -25,15 +30,15 @@ impl super::CriptorEngine {
             .as_deref()
             .and_then(|s| serde_json::from_str(s).ok())
             .unwrap_or_default();
-            
+
         if let Some(pos) = groups.iter().position(|g| g == old_name) {
             groups[pos] = new_name.to_string();
         }
-        
+
         let serialized = serde_json::to_string(&groups)
             .map_err(|e| CriptorError::SerializationError(e.to_string()))?;
         storage::set_preference_tx(&mut tx, "groups", &serialized).await?;
-        
+
         tx.commit().await?;
         Ok(())
     }
@@ -56,12 +61,12 @@ impl super::CriptorEngine {
             .as_deref()
             .and_then(|s| serde_json::from_str(s).ok())
             .unwrap_or_default();
-            
+
         groups.retain(|g| g != name);
         let serialized = serde_json::to_string(&groups)
             .map_err(|e| CriptorError::SerializationError(e.to_string()))?;
         storage::set_preference_tx(&mut tx, "groups", &serialized).await?;
-        
+
         tx.commit().await?;
         Ok(())
     }

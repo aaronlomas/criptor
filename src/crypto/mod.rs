@@ -1,16 +1,16 @@
 pub mod secret;
 
 // Key Derivation (KDF)
+use self::secret::{SecretBytes, SecretKey, SecretString};
+use crate::error::{CriptorError, CriptorResult};
+use argon2::{Algorithm, Argon2, Params, Version};
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use chacha20poly1305::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
     ChaCha20Poly1305, Key, Nonce,
 };
-use argon2::{Algorithm, Argon2, Params, Version};
-use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use crate::error::{CriptorError, CriptorResult};
 use rand::{Rng, RngCore};
 use zeroize::Zeroize;
-use self::secret::{SecretKey, SecretString, SecretBytes};
 
 pub const ARGON2_M_COST: u32 = 65536;
 pub const ARGON2_T_COST: u32 = 3;
@@ -63,7 +63,9 @@ pub fn encrypt(plaintext: &SecretString, key: &SecretKey) -> CriptorResult<Strin
 pub fn decrypt(encoded: &str, key: &SecretKey) -> CriptorResult<SecretString> {
     let payload = B64.decode(encoded)?;
     if payload.len() < NONCE_LEN {
-        return Err(CriptorError::CryptoError("Ciphertext too short".to_string()));
+        return Err(CriptorError::CryptoError(
+            "Ciphertext too short".to_string(),
+        ));
     }
 
     let (nonce_bytes, ciphertext) = payload.split_at(NONCE_LEN);
@@ -81,7 +83,7 @@ pub fn decrypt(encoded: &str, key: &SecretKey) -> CriptorResult<SecretString> {
         err_bytes.zeroize();
         CriptorError::DecodeError("UTF-8 error".to_string())
     })?;
-    
+
     Ok(SecretString::new(result))
 }
 
@@ -196,7 +198,7 @@ mod tests {
         let plaintext = SecretString::new("Hello, Criptor!".to_string());
         let ciphertext = encrypt(&plaintext, &key).unwrap();
         assert_ne!(plaintext.as_str(), ciphertext); // Not plaintext
-        
+
         let decrypted = decrypt(&ciphertext, &key).unwrap();
         assert_eq!(plaintext.as_str(), decrypted.as_str());
     }
@@ -207,7 +209,7 @@ mod tests {
         let key2 = SecretKey::new([43u8; 32]);
         let plaintext = SecretString::new("Hello, Criptor!".to_string());
         let ciphertext = encrypt(&plaintext, &key1).unwrap();
-        
+
         let result = decrypt(&ciphertext, &key2);
         assert!(result.is_err(), "Decrypting with wrong key should fail");
     }
@@ -217,17 +219,20 @@ mod tests {
         let key = SecretKey::new([42u8; 32]);
         let plaintext = SecretString::new("Hello, Criptor!".to_string());
         let mut ciphertext = encrypt(&plaintext, &key).unwrap();
-        
+
         // Corrupt the base64 string
         let len = ciphertext.len();
         if ciphertext.as_bytes()[len - 1] == b'=' {
-            ciphertext.replace_range(len-2..len-1, "A");
+            ciphertext.replace_range(len - 2..len - 1, "A");
         } else {
-            ciphertext.replace_range(len-1..len, "A");
+            ciphertext.replace_range(len - 1..len, "A");
         }
 
         let result = decrypt(&ciphertext, &key);
-        assert!(result.is_err(), "Decrypting tampered ciphertext should fail");
+        assert!(
+            result.is_err(),
+            "Decrypting tampered ciphertext should fail"
+        );
     }
 
     #[test]

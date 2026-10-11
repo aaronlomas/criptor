@@ -1,7 +1,7 @@
-use std::fmt;
 use serde::{Deserialize, Serialize, Serializer};
-use zeroize::Zeroize;
+use std::fmt;
 use subtle::{Choice, ConstantTimeEq};
+use zeroize::Zeroize;
 
 /// A wrapper for sensitive byte arrays that zeroizes its contents upon drop.
 #[derive(Clone)]
@@ -102,7 +102,7 @@ impl SecretString {
     pub fn as_str(&self) -> &str {
         &self.0
     }
-    
+
     pub fn into_bytes(self) -> SecretBytes {
         let mut s = self;
         let bytes = std::mem::take(&mut s.0).into_bytes();
@@ -196,7 +196,7 @@ mod tests {
         let s1 = SecretString::new("aaa".to_string());
         let s2 = SecretString::new("aaa".to_string());
         let s3 = SecretString::new("bbb".to_string());
-        
+
         assert!(bool::from(s1.ct_eq(&s2)));
         assert!(!bool::from(s1.ct_eq(&s3)));
     }

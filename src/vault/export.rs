@@ -1,13 +1,13 @@
-use serde::{Deserialize, Serialize};
-use crate::crypto::secret::{SecretString, SecretBytes};
-use crate::error::CriptorResult;
 use crate::crypto;
+use crate::crypto::secret::{SecretBytes, SecretString};
+use crate::error::CriptorResult;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct ExportPackage {
     pub version: u32,
-    pub salt: String, // base64
-    pub nonce: String, // base64
+    pub salt: String,    // base64
+    pub nonce: String,   // base64
     pub payload: String, // encrypted JSON ciphertext (base64)
 }
 
@@ -49,8 +49,8 @@ pub struct ExportPayload {
 impl ExportPackage {
     /// Creates a new encrypted export package from the given payload and password.
     pub fn encrypt(payload: &ExportPayload, password: &SecretString) -> CriptorResult<Self> {
-        use rand::RngCore;
         use base64::Engine;
+        use rand::RngCore;
 
         // 1. Serialize payload to binary (Zeroize-ready)
         let json_data = serde_json::to_vec(payload)
@@ -103,18 +103,16 @@ mod tests {
     #[test]
     fn test_export_package_roundtrip() {
         let password = SecretString::new("export_pass".to_string());
-        
+
         let payload = ExportPayload {
-            accounts: vec![
-                ExportAccount {
-                    site: "site.com".to_string(),
-                    username: "user".to_string(),
-                    password: "pass".to_string(),
-                    recovery_code: Some("rec-123".to_string()),
-                    notes: None,
-                    group_name: Some("Work".to_string()),
-                }
-            ],
+            accounts: vec![ExportAccount {
+                site: "site.com".to_string(),
+                username: "user".to_string(),
+                password: "pass".to_string(),
+                recovery_code: Some("rec-123".to_string()),
+                notes: None,
+                group_name: Some("Work".to_string()),
+            }],
             pins: vec![],
             documents: vec![],
             preferences: vec![("theme".to_string(), "dark".to_string())],
@@ -123,7 +121,7 @@ mod tests {
 
         // 1. Encrypt
         let package = ExportPackage::encrypt(&payload, &password).expect("Encryption failed");
-        
+
         // Ensure some properties of the package
         assert_eq!(package.version, 1);
         assert!(!package.payload.is_empty());
@@ -131,7 +129,7 @@ mod tests {
 
         // 2. Decrypt
         let decrypted = package.decrypt(&password).expect("Decryption failed");
-        
+
         // 3. Verify
         assert_eq!(decrypted.accounts.len(), 1);
         assert_eq!(decrypted.accounts[0].site.as_str(), "site.com");
@@ -142,7 +140,7 @@ mod tests {
     fn test_export_package_wrong_password() {
         let password = SecretString::new("pass1".to_string());
         let wrong_password = SecretString::new("pass2".to_string());
-        
+
         let payload = ExportPayload {
             accounts: vec![],
             pins: vec![],
@@ -153,7 +151,10 @@ mod tests {
 
         let package = ExportPackage::encrypt(&payload, &password).unwrap();
         let result = package.decrypt(&wrong_password);
-        
-        assert!(result.is_err(), "Decryption should fail with wrong password");
+
+        assert!(
+            result.is_err(),
+            "Decryption should fail with wrong password"
+        );
     }
 }

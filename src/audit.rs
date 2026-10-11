@@ -1,8 +1,7 @@
-use crate::storage;
-use sqlx::SqlitePool;
-use serde::Serialize;
 use crate::error::CriptorResult;
-
+use crate::storage;
+use serde::Serialize;
+use sqlx::SqlitePool;
 
 #[derive(Debug, Serialize, Clone, Copy)]
 #[serde(rename_all = "snake_case")]

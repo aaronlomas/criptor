@@ -30,23 +30,42 @@ impl CriptorClient {
             "crypto" => vec![
                 "── Cryptographic Parameters ────────────────────────────────".into(),
                 "  KDF Algorithm    : Argon2id (RFC 9106)".to_string(),
-                format!("  Memory Cost (m)  : {} KiB  ({} MiB)", crypto::ARGON2_M_COST, crypto::ARGON2_M_COST / 1024),
+                format!(
+                    "  Memory Cost (m)  : {} KiB  ({} MiB)",
+                    crypto::ARGON2_M_COST,
+                    crypto::ARGON2_M_COST / 1024
+                ),
                 format!("  Time Cost   (t)  : {} iterations", crypto::ARGON2_T_COST),
                 format!("  Parallelism (p)  : {} lanes", crypto::ARGON2_P_COST),
                 "  Output Length    : 32 bytes (256-bit key)".to_string(),
                 "".into(),
                 "  AEAD Cipher      : ChaCha20-Poly1305 (RFC 8439)".to_string(),
-                format!("  Nonce Length     : {} bytes (96-bit random)", crypto::NONCE_LEN),
-                format!("  Auth Tag Length  : {} bytes (128-bit MAC)", crypto::TAG_LEN),
+                format!(
+                    "  Nonce Length     : {} bytes (96-bit random)",
+                    crypto::NONCE_LEN
+                ),
+                format!(
+                    "  Auth Tag Length  : {} bytes (128-bit MAC)",
+                    crypto::TAG_LEN
+                ),
                 "  Key Length       : 32 bytes (256-bit)".to_string(),
                 "────────────────────────────────────────────────────────────".into(),
             ],
 
             "status" => {
                 let locked = self.is_locked();
-                let session_ok = *self.session_verified.lock().unwrap_or_else(|e| e.into_inner());
+                let session_ok = *self
+                    .session_verified
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
                 let vault_state = if locked { "LOCKED" } else { "UNLOCKED" };
-                let session_state = if session_ok { "VERIFIED" } else if !locked { "PENDING_TOTP" } else { "N/A" };
+                let session_state = if session_ok {
+                    "VERIFIED"
+                } else if !locked {
+                    "PENDING_TOTP"
+                } else {
+                    "N/A"
+                };
 
                 vec![
                     "── Criptor Status ───────────────────────────────────────────".into(),
@@ -57,35 +76,37 @@ impl CriptorClient {
                 ]
             }
 
-            "audit" => match args {
-                "-rm" => match self.clear_audit_logs().await {
-                    Ok(()) => vec![
-                        "── Audit Log ────────────────────────────────────────────────".into(),
-                        "  All audit log entries have been removed.".into(),
-                        format!("  Retention cap: {} rows (automatic).", AUDIT_LOG_MAX_ROWS),
-                        "────────────────────────────────────────────────────────────".into(),
-                    ],
-                    Err(e) => vec![format!("audit -rm: error: {}", e)],
-                },
+            "audit" => {
+                match args {
+                    "-rm" => match self.clear_audit_logs().await {
+                        Ok(()) => vec![
+                            "── Audit Log ────────────────────────────────────────────────".into(),
+                            "  All audit log entries have been removed.".into(),
+                            format!("  Retention cap: {} rows (automatic).", AUDIT_LOG_MAX_ROWS),
+                            "────────────────────────────────────────────────────────────".into(),
+                        ],
+                        Err(e) => vec![format!("audit -rm: error: {}", e)],
+                    },
 
-                flag if flag.starts_with("-n ") => {
-                    let n_str = flag.trim_start_matches("-n ").trim();
-                    match n_str.parse::<i64>() {
+                    flag if flag.starts_with("-n ") => {
+                        let n_str = flag.trim_start_matches("-n ").trim();
+                        match n_str.parse::<i64>() {
                         Ok(n) if n > 0 => self.shell_show_audit_logs(n).await,
                         _ => vec![
                             format!("audit -n: invalid argument '{}' — expected a positive integer.", n_str),
                             "  Usage: audit -n <N>".into(),
                         ],
                     }
+                    }
+
+                    "" => self.shell_show_audit_logs(10).await,
+
+                    unknown => vec![
+                        format!("audit: unknown flag '{}'", unknown),
+                        "  Usage: audit | audit -n <N> | audit -rm".into(),
+                    ],
                 }
-
-                "" => self.shell_show_audit_logs(10).await,
-
-                unknown => vec![
-                    format!("audit: unknown flag '{}'", unknown),
-                    "  Usage: audit | audit -n <N> | audit -rm".into(),
-                ],
-            },
+            }
 
             "" => vec![],
 
@@ -100,9 +121,10 @@ impl CriptorClient {
     async fn shell_show_audit_logs(&self, limit: i64) -> Vec<String> {
         match self.get_audit_logs(limit).await {
             Ok(logs) => {
-                let mut output = vec![
-                    format!("── Audit Log (last {}) ──────────────────────────────────────", limit),
-                ];
+                let mut output = vec![format!(
+                    "── Audit Log (last {}) ──────────────────────────────────────",
+                    limit
+                )];
                 if logs.is_empty() {
                     output.push("  No audit log entries found.".into());
                 } else {
@@ -111,10 +133,7 @@ impl CriptorClient {
                         output.push(format!("  [{}] {} — {}", log.created_at, log.action, meta));
                     }
                 }
-                output.push(format!(
-                    "  Retention cap: {} rows.",
-                    AUDIT_LOG_MAX_ROWS
-                ));
+                output.push(format!("  Retention cap: {} rows.", AUDIT_LOG_MAX_ROWS));
                 output.push("────────────────────────────────────────────────────────────".into());
                 output
             }

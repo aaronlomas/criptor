@@ -1,18 +1,18 @@
 use std::sync::{Arc, Mutex};
 
-use sqlx::SqlitePool;
 use crate::crypto::secret::SecretKey;
+use sqlx::SqlitePool;
 
 pub mod account;
+pub mod authentication;
 pub mod document;
+pub mod export;
+pub mod export_import;
 pub mod group;
 pub mod pin;
 pub mod preferences;
-pub mod validation;
 pub mod totp;
-pub mod export;
-pub mod authentication;
-pub mod export_import;
+pub mod validation;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core Structures

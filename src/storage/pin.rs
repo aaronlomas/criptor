@@ -1,9 +1,9 @@
 // PIN persistence. `encrypted_pin`/`encrypted_notes` hold ciphertext produced by the vault layer.
 
+use crate::error::CriptorResult;
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use uuid::Uuid;
-use crate::error::CriptorResult;
 
 /// A row from the `pins` table as returned to the frontend.
 #[derive(Debug, Serialize, Deserialize, Clone, sqlx::FromRow)]

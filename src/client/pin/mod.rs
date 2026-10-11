@@ -9,7 +9,11 @@ impl super::CriptorClient {
         notes: SecretString,
     ) -> Result<String, String> {
         let engine = self.get_engine()?;
-        let notes_opt = if notes.as_str().is_empty() { None } else { Some(notes) };
+        let notes_opt = if notes.as_str().is_empty() {
+            None
+        } else {
+            Some(notes)
+        };
         engine
             .add_pin(name, pin, notes_opt)
             .await
@@ -38,6 +42,9 @@ impl super::CriptorClient {
             .map_err(|_| format!("Invalid PIN ID: '{}'. Must be a valid UUID.", id))?;
 
         let engine = self.get_engine()?;
-        engine.update_pin_group(id, group_name).await.map_err(|e| e.to_string())
+        engine
+            .update_pin_group(id, group_name)
+            .await
+            .map_err(|e| e.to_string())
     }
 }

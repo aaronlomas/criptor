@@ -25,8 +25,7 @@ impl super::CriptorClient {
 
         let dest_filename = format!("background.{}", ext);
         let dest = dest_dir.join(&dest_filename);
-        std::fs::copy(src_path, &dest)
-            .map_err(|e| format!("Error to copy image: {}", e))?;
+        std::fs::copy(src_path, &dest).map_err(|e| format!("Error to copy image: {}", e))?;
 
         Ok(dest_filename)
     }
@@ -34,8 +33,8 @@ impl super::CriptorClient {
     pub fn get_background_data_url(&self, filename: &str) -> Result<String, String> {
         let path = self.app_data_dir().join(filename);
 
-        let bytes = std::fs::read(&path)
-            .map_err(|e| format!("Cannot read background image: {}", e))?;
+        let bytes =
+            std::fs::read(&path).map_err(|e| format!("Cannot read background image: {}", e))?;
 
         let ext = std::path::Path::new(filename)
             .extension()

@@ -9,7 +9,10 @@ pub struct AuditLogView {
 }
 
 impl super::CriptorClient {
-    pub async fn get_audit_logs(&self, limit: i64) -> Result<Vec<crate::client::AuditLogView>, String> {
+    pub async fn get_audit_logs(
+        &self,
+        limit: i64,
+    ) -> Result<Vec<crate::client::AuditLogView>, String> {
         let engine = self.get_engine()?;
         let logs = storage::get_audit_logs(&engine.db, limit)
             .await
@@ -17,12 +20,14 @@ impl super::CriptorClient {
 
         let view = logs
             .into_iter()
-            .map(|(id, action, meta, created_at)| crate::client::AuditLogView {
-                id,
-                action,
-                metadata: meta,
-                created_at,
-            })
+            .map(
+                |(id, action, meta, created_at)| crate::client::AuditLogView {
+                    id,
+                    action,
+                    metadata: meta,
+                    created_at,
+                },
+            )
             .collect();
 
         Ok(view)

@@ -1,14 +1,14 @@
 // Lifecycle & Authentication
 
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::str::FromStr;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use crate::crypto::secret::{SecretKey, SecretString};
-use crate::crypto;
-use crate::storage;
-use crate::error::{CriptorError, CriptorResult};
 use super::{CriptorEngine, MasterKey};
+use crate::crypto;
+use crate::crypto::secret::{SecretKey, SecretString};
+use crate::error::{CriptorError, CriptorResult};
+use crate::storage;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use std::path::Path;
+use std::str::FromStr;
+use std::sync::{Arc, Mutex};
 
 impl CriptorEngine {
     /// Returns true if the vault database or its salt file exists.
@@ -19,10 +19,14 @@ impl CriptorEngine {
 
     pub fn is_locked(&self) -> bool {
         // SEC-H4: Handle potential lock poisoning gracefully
-        self.master_key.lock()
+        self.master_key
+            .lock()
             .map(|l| l.is_none())
             .unwrap_or_else(|e| {
-                eprintln!("[WARNING] Master key lock is poisoned: {}. Vault is considered locked.", e);
+                eprintln!(
+                    "[WARNING] Master key lock is poisoned: {}. Vault is considered locked.",
+                    e
+                );
                 true // Safer default: consider vault locked if we can't acquire the lock
             })
     }
@@ -33,16 +37,19 @@ impl CriptorEngine {
         let salt_path = db_path.with_file_name("vault.salt");
 
         let salt = if salt_path.exists() {
-            std::fs::read(&salt_path).map_err(|e| CriptorError::IoError(format!("Failed to read vault salt: {}", e)))?
+            std::fs::read(&salt_path)
+                .map_err(|e| CriptorError::IoError(format!("Failed to read vault salt: {}", e)))?
         } else {
             use rand::RngCore;
             let mut new_salt = vec![0u8; 32];
             rand::rngs::OsRng.fill_bytes(&mut new_salt);
-            std::fs::write(&salt_path, &new_salt).map_err(|e| CriptorError::IoError(format!("Failed to write vault salt: {}", e)))?;
+            std::fs::write(&salt_path, &new_salt)
+                .map_err(|e| CriptorError::IoError(format!("Failed to write vault salt: {}", e)))?;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
-                let _ = std::fs::set_permissions(&salt_path, std::fs::Permissions::from_mode(0o600));
+                let _ =
+                    std::fs::set_permissions(&salt_path, std::fs::Permissions::from_mode(0o600));
             }
             #[cfg(windows)]
             {
@@ -52,7 +59,9 @@ impl CriptorEngine {
                 // (e.g., C:\Users\<User>\AppData\Local\...), which by default inherits ACLs
                 // that restrict access strictly to the current user profile and administrators.
                 let mut perms = std::fs::metadata(&salt_path)
-                    .map_err(|e| CriptorError::IoError(format!("Failed to read salt metadata: {}", e)))?
+                    .map_err(|e| {
+                        CriptorError::IoError(format!("Failed to read salt metadata: {}", e))
+                    })?
                     .permissions();
                 perms.set_readonly(true);
                 let _ = std::fs::set_permissions(&salt_path, perms);
@@ -63,15 +72,20 @@ impl CriptorEngine {
         // Derive key from salt and password
         let key = crypto::derive_key(password, &salt)?;
 
-        let engine = Self::open_encrypted(db_path, &key).await
+        let engine = Self::open_encrypted(db_path, &key)
+            .await
             .map_err(|_| CriptorError::InvalidPassword)?;
 
         // Verify the key by initializing schema (if key is wrong, this will fail)
-        storage::init_db(&engine.db).await.map_err(|_| CriptorError::InvalidPassword)?;
+        storage::init_db(&engine.db)
+            .await
+            .map_err(|_| CriptorError::InvalidPassword)?;
 
         // Store the master key in the engine
         {
-            let mut key_lock = engine.master_key.lock()
+            let mut key_lock = engine
+                .master_key
+                .lock()
                 .map_err(|_| CriptorError::Other("Vault lock poisoned".to_string()))?;
             *key_lock = Some(MasterKey::new(key));
         }
@@ -80,7 +94,12 @@ impl CriptorEngine {
         if let Ok(Some(pref)) = engine.get_preference("security.block_remote").await {
             if pref == "true" {
                 if crate::security::environment_check() {
-                    let _ = engine.log_audit(crate::audit::AuditAction::VaultUnlock, Some("Blocked: Remote Session Detected")).await;
+                    let _ = engine
+                        .log_audit(
+                            crate::audit::AuditAction::VaultUnlock,
+                            Some("Blocked: Remote Session Detected"),
+                        )
+                        .await;
                     engine.lock(); // Lock it back immediately
                     return Err(CriptorError::RemoteSessionDetected);
                 } else {
@@ -89,7 +108,7 @@ impl CriptorEngine {
                     tokio::spawn(async move {
                         loop {
                             tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-                            
+
                             // Stop monitoring if the vault is already locked
                             let is_locked = {
                                 if let Ok(lock) = master_key_clone.lock() {
@@ -98,11 +117,11 @@ impl CriptorEngine {
                                     true // Poisoned, consider locked
                                 }
                             };
-                            
+
                             if is_locked {
                                 break;
                             }
-                            
+
                             // If a remote session is detected while unlocked, lock immediately
                             if crate::security::environment_check() {
                                 if let Ok(mut lock) = master_key_clone.lock() {
@@ -117,7 +136,9 @@ impl CriptorEngine {
         }
 
         // SOC2: Log successful unlock
-        let _ = engine.log_audit(crate::audit::AuditAction::VaultUnlock, Some("Success")).await;
+        let _ = engine
+            .log_audit(crate::audit::AuditAction::VaultUnlock, Some("Success"))
+            .await;
 
         Ok(engine)
     }
@@ -146,7 +167,7 @@ impl CriptorEngine {
         }
         pragma.push(b'\'');
         pragma.push(b'"');
-        
+
         let s = String::from_utf8(pragma).expect("Valid ASCII");
         SecretString::new(s)
     }
@@ -155,10 +176,10 @@ impl CriptorEngine {
     pub async fn open_encrypted(db_path: &Path, key: &SecretKey) -> CriptorResult<Self> {
         let url = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());
         let mut options = SqliteConnectOptions::from_str(&url)?;
-        
+
         // Send the PRAGMA key right upon connecting
         let pragma_key = Self::generate_pragma_key(key);
-        
+
         // SEC-C4: `pragma_key` only contains safe hexadecimal characters inside `x'...'`.
         // This is safe from SQL injection, even though sqlx concatenates PRAGMA values.
         //
@@ -184,11 +205,12 @@ impl CriptorEngine {
         let cipher_version: Option<(String,)> = sqlx::query_as("PRAGMA cipher_version;")
             .fetch_optional(&pool)
             .await?;
-        
+
         if cipher_version.is_none() || cipher_version.as_ref().unwrap().0.trim().is_empty() {
             return Err(CriptorError::Other(
                 "CRITICAL: SQLCipher is not correctly linked or configured. \
-                 Falling back to standard SQLite is prohibited for security reasons.".to_string()
+                 Falling back to standard SQLite is prohibited for security reasons."
+                    .to_string(),
             ));
         }
 
@@ -206,7 +228,11 @@ impl CriptorEngine {
     }
 
     /// Logs an action to the persistent audit log.
-    pub async fn log_audit(&self, action: crate::audit::AuditAction, metadata: Option<&str>) -> CriptorResult<()> {
+    pub async fn log_audit(
+        &self,
+        action: crate::audit::AuditAction,
+        metadata: Option<&str>,
+    ) -> CriptorResult<()> {
         crate::storage::add_audit_log(&self.db, action.as_str(), metadata).await
     }
 
@@ -225,7 +251,9 @@ impl CriptorEngine {
     where
         F: FnOnce(&SecretKey) -> R,
     {
-        let lock = self.master_key.lock()
+        let lock = self
+            .master_key
+            .lock()
             .map_err(|_| CriptorError::Other("Vault lock poisoned".to_string()))?;
 
         lock.as_ref()

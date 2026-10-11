@@ -13,7 +13,9 @@ pub const MAX_PIN_LEN: usize = 64;
 pub fn validate_string(s: &str, field: &str, max_len: usize, required: bool) -> CriptorResult<()> {
     let trimmed = s.trim();
     if required && trimmed.is_empty() {
-        return Err(CriptorError::EmptyInput { field: field.to_string() });
+        return Err(CriptorError::EmptyInput {
+            field: field.to_string(),
+        });
     }
     if s.len() > max_len {
         return Err(CriptorError::InputTooLong {

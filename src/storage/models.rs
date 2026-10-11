@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 /// A decrypted account entry as returned to the frontend.
 /// Passwords and notes are decrypted in memory before serialization —
 /// they are never stored in plaintext on disk.

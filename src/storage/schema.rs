@@ -1,7 +1,7 @@
 // Database schema initialization and legacy migrations.
 
-use sqlx::SqlitePool;
 use crate::error::CriptorResult;
+use sqlx::SqlitePool;
 
 /// Initializes the database schema, creating every table if it does not exist.
 pub async fn init_db(pool: &SqlitePool) -> CriptorResult<()> {
@@ -83,10 +83,18 @@ pub async fn init_db(pool: &SqlitePool) -> CriptorResult<()> {
 
     // Handle legacy schema updates gracefully
     // Note: vault_meta is intentionally absent — the KDF salt lives in `vault.salt` on disk.
-    let _ = sqlx::query("ALTER TABLE accounts ADD COLUMN group_name TEXT").execute(pool).await;
-    let _ = sqlx::query("ALTER TABLE accounts ADD COLUMN encrypted_recovery_code TEXT").execute(pool).await;
-    let _ = sqlx::query("ALTER TABLE accounts ADD COLUMN favicon_url TEXT").execute(pool).await;
-    let _ = sqlx::query("ALTER TABLE pins ADD COLUMN group_name TEXT").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE accounts ADD COLUMN group_name TEXT")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE accounts ADD COLUMN encrypted_recovery_code TEXT")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE accounts ADD COLUMN favicon_url TEXT")
+        .execute(pool)
+        .await;
+    let _ = sqlx::query("ALTER TABLE pins ADD COLUMN group_name TEXT")
+        .execute(pool)
+        .await;
 
     Ok(())
 }

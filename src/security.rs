@@ -32,7 +32,8 @@ pub fn environment_check() -> bool {
             if !handle.is_null() {
                 let func = libc::dlsym(handle, c"sd_session_is_remote".as_ptr() as *const _);
                 if !func.is_null() {
-                    let sd_session_is_remote: extern "C" fn(*const libc::c_char) -> libc::c_int = std::mem::transmute(func);
+                    let sd_session_is_remote: extern "C" fn(*const libc::c_char) -> libc::c_int =
+                        std::mem::transmute(func);
                     // Pass NULL to check the current session
                     let result = sd_session_is_remote(std::ptr::null());
                     libc::dlclose(handle);
@@ -47,7 +48,14 @@ pub fn environment_check() -> bool {
 
         // 3. Detect remote desktop software processes (AnyDesk, TeamViewer, VNC, etc.)
         if let Ok(entries) = std::fs::read_dir("/proc") {
-            let remote_procs = ["anydesk", "teamviewer", "rustdesk", "xrdp", "vnc", "remmina"];
+            let remote_procs = [
+                "anydesk",
+                "teamviewer",
+                "rustdesk",
+                "xrdp",
+                "vnc",
+                "remmina",
+            ];
             for entry in entries.flatten() {
                 if let Ok(file_type) = entry.file_type() {
                     if file_type.is_dir() {

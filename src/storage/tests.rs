@@ -1,5 +1,5 @@
 use super::*;
-use sqlx::{SqlitePool, sqlite::SqlitePoolOptions};
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 
 async fn setup_db() -> SqlitePool {
     let pool = SqlitePoolOptions::new()
@@ -14,12 +14,16 @@ async fn setup_db() -> SqlitePool {
 async fn test_db_init() {
     let pool = setup_db().await;
     // Check if tables exist
-    let tables: Vec<(String,)> = sqlx::query_as("SELECT name FROM sqlite_master WHERE type='table'")
-        .fetch_all(&pool)
-        .await
-        .unwrap();
+    let tables: Vec<(String,)> =
+        sqlx::query_as("SELECT name FROM sqlite_master WHERE type='table'")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
     let table_names: Vec<String> = tables.into_iter().map(|(n,)| n).collect();
-    assert!(!table_names.contains(&"vault_meta".to_string()), "vault_meta must not exist: salt lives in vault.salt on disk");
+    assert!(
+        !table_names.contains(&"vault_meta".to_string()),
+        "vault_meta must not exist: salt lives in vault.salt on disk"
+    );
     assert!(table_names.contains(&"accounts".to_string()));
     assert!(table_names.contains(&"preferences".to_string()));
 }
@@ -28,13 +32,25 @@ async fn test_db_init() {
 async fn test_crud_accounts() {
     let pool = setup_db().await;
 
-    let id = add_account(&pool, "site.com", "user", "pass", None, Some("notes"), Some("favicon")).await.unwrap();
+    let id = add_account(
+        &pool,
+        "site.com",
+        "user",
+        "pass",
+        None,
+        Some("notes"),
+        Some("favicon"),
+    )
+    .await
+    .unwrap();
     let accounts = get_accounts(&pool).await.unwrap();
     assert_eq!(accounts.len(), 1);
     assert_eq!(accounts[0].id, id);
     assert_eq!(accounts[0].site, "site.com");
 
-    update_account_group(&pool, &id, Some("Work")).await.unwrap();
+    update_account_group(&pool, &id, Some("Work"))
+        .await
+        .unwrap();
     let accounts = get_accounts(&pool).await.unwrap();
     assert_eq!(accounts[0].group_name, Some("Work".to_string()));
 
@@ -62,8 +78,12 @@ async fn test_preferences() {
 #[tokio::test]
 async fn test_group_operations_tx() {
     let pool = setup_db().await;
-    add_account(&pool, "s1", "u", "p", None, None, None).await.unwrap();
-    let id2 = add_account(&pool, "s2", "u", "p", None, None, None).await.unwrap();
+    add_account(&pool, "s1", "u", "p", None, None, None)
+        .await
+        .unwrap();
+    let id2 = add_account(&pool, "s2", "u", "p", None, None, None)
+        .await
+        .unwrap();
     update_account_group(&pool, &id2, Some("G1")).await.unwrap();
 
     let mut tx = pool.begin().await.unwrap();
@@ -88,14 +108,19 @@ async fn test_audit_log_prune_respects_cap() {
     // Insert more rows than the cap to trigger pruning.
     let over_cap = (AUDIT_LOG_MAX_ROWS + 5) as usize;
     for i in 0..over_cap {
-        add_audit_log(&pool, "vault_unlock", Some(&format!("entry {i}"))).await.unwrap();
+        add_audit_log(&pool, "vault_unlock", Some(&format!("entry {i}")))
+            .await
+            .unwrap();
     }
 
     let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM audit_log")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(count.0, AUDIT_LOG_MAX_ROWS, "Row count must equal the cap after pruning");
+    assert_eq!(
+        count.0, AUDIT_LOG_MAX_ROWS,
+        "Row count must equal the cap after pruning"
+    );
 }
 
 #[tokio::test]
@@ -103,7 +128,9 @@ async fn test_audit_log_clear() {
     let pool = setup_db().await;
 
     add_audit_log(&pool, "vault_lock", None).await.unwrap();
-    add_audit_log(&pool, "vault_unlock", Some("ok")).await.unwrap();
+    add_audit_log(&pool, "vault_unlock", Some("ok"))
+        .await
+        .unwrap();
 
     clear_audit_log(&pool).await.unwrap();
 
@@ -121,7 +148,9 @@ async fn test_audit_log_retains_newest() {
     // Insert cap + 3 rows; the 3 oldest must be pruned.
     let total = (AUDIT_LOG_MAX_ROWS + 3) as usize;
     for i in 0..total {
-        add_audit_log(&pool, "secret_access", Some(&format!("seq {i}"))).await.unwrap();
+        add_audit_log(&pool, "secret_access", Some(&format!("seq {i}")))
+            .await
+            .unwrap();
     }
 
     // The oldest surviving row should have metadata "seq 3" (0-based).

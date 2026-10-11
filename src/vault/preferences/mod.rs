@@ -15,7 +15,12 @@ impl super::CriptorEngine {
     pub async fn set_preference(&self, key: &str, value: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
         validation::validate_string(key, "Preference", validation::MAX_PREF_KEY_LEN, true)?;
-        validation::validate_string(value, "Preference value", validation::MAX_PREF_VALUE_LEN, false)?;
+        validation::validate_string(
+            value,
+            "Preference value",
+            validation::MAX_PREF_VALUE_LEN,
+            false,
+        )?;
         storage::set_preference(&self.db, key, value).await
     }
 

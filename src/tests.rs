@@ -1,16 +1,18 @@
 #[cfg(test)]
-use crate::vault::CriptorEngine;
-#[cfg(test)]
-use crate::crypto::secret::{SecretString, SecretKey};
+use crate::crypto::secret::{SecretKey, SecretString};
 #[cfg(test)]
 use crate::error::CriptorError;
+#[cfg(test)]
+use crate::vault::CriptorEngine;
 #[cfg(test)]
 use std::path::PathBuf;
 
 #[cfg(test)]
 async fn setup_engine() -> CriptorEngine {
     // Use an in-memory database for testing
-    let engine = CriptorEngine::open_unencrypted(&PathBuf::from(":memory:")).await.unwrap();
+    let engine = CriptorEngine::open_unencrypted(&PathBuf::from(":memory:"))
+        .await
+        .unwrap();
     crate::storage::init_db(&engine.db).await.unwrap();
     engine
 }
@@ -24,13 +26,15 @@ async fn test_locking_guards() {
     let res = engine.get_accounts().await;
     assert!(matches!(res, Err(CriptorError::VaultLocked)));
 
-    let res = engine.add_account(
-        SecretString::from("site"),
-        SecretString::from("user"),
-        SecretString::from("pass"),
-        None,
-        None
-    ).await;
+    let res = engine
+        .add_account(
+            SecretString::from("site"),
+            SecretString::from("user"),
+            SecretString::from("pass"),
+            None,
+            None,
+        )
+        .await;
     assert!(matches!(res, Err(CriptorError::VaultLocked)));
 }
 
@@ -45,24 +49,28 @@ async fn test_validation_limits() {
 
     // Test site too long
     let long_site = "a".repeat(300);
-    let res = engine.add_account(
-        SecretString::from(long_site),
-        SecretString::from("user"),
-        SecretString::from("pass"),
-        None,
-        None
-    ).await;
+    let res = engine
+        .add_account(
+            SecretString::from(long_site),
+            SecretString::from("user"),
+            SecretString::from("pass"),
+            None,
+            None,
+        )
+        .await;
     assert!(res.is_err());
-    
+
     // Test notes too long
     let long_notes = "a".repeat(20000);
-    let res = engine.add_account(
-        SecretString::from("site"),
-        SecretString::from("user"),
-        SecretString::from("pass"),
-        None,
-        Some(SecretString::from(long_notes))
-    ).await;
+    let res = engine
+        .add_account(
+            SecretString::from("site"),
+            SecretString::from("user"),
+            SecretString::from("pass"),
+            None,
+            Some(SecretString::from(long_notes)),
+        )
+        .await;
     assert!(res.is_err());
 }
 
@@ -74,11 +82,21 @@ async fn test_group_management() {
         *lock = Some(crate::vault::MasterKey::new(SecretKey::new([0u8; 32])));
     }
 
-    let id = engine.add_account(
-        SecretString::from("s"), SecretString::from("u"), SecretString::from("p"), None, None
-    ).await.unwrap();
+    let id = engine
+        .add_account(
+            SecretString::from("s"),
+            SecretString::from("u"),
+            SecretString::from("p"),
+            None,
+            None,
+        )
+        .await
+        .unwrap();
 
-    engine.update_account_group(&id, Some("Work")).await.unwrap();
+    engine
+        .update_account_group(&id, Some("Work"))
+        .await
+        .unwrap();
     let accounts = engine.get_accounts().await.unwrap();
     assert_eq!(accounts[0].group_name, Some("Work".to_string()));
 
@@ -103,7 +121,10 @@ async fn test_preferences_flow() {
     }
 
     engine.set_preference("lang", "es").await.unwrap();
-    assert_eq!(engine.get_preference("lang").await.unwrap(), Some("es".to_string()));
+    assert_eq!(
+        engine.get_preference("lang").await.unwrap(),
+        Some("es".to_string())
+    );
 }
 
 #[tokio::test]
@@ -126,15 +147,19 @@ async fn test_totp_flow() {
     // 3. Verify with recovery code
     let valid_recovery = &setup.recovery_codes[0];
     assert!(engine.verify_totp_recovery(valid_recovery).await.unwrap());
-    
+
     // 4. After recovery, it should be disabled/reset
     assert!(!engine.is_totp_enabled().await.unwrap());
-    assert!(engine.get_preference("totp_secret_cipher").await.unwrap().is_none());
+    assert!(engine
+        .get_preference("totp_secret_cipher")
+        .await
+        .unwrap()
+        .is_none());
 
     // 5. Setup again and test wrong code
     engine.setup_totp().await.unwrap();
     assert!(!engine.verify_totp("000000").await.unwrap());
-    
+
     // 6. Test invalid recovery
     let res = engine.verify_totp_recovery("INVALID").await.unwrap();
     assert!(!res);
@@ -178,23 +203,26 @@ async fn test_pagination() {
 
     // Add 5 accounts
     for i in 1..=5 {
-        engine.add_account(
-            SecretString::from(format!("site{}", i)),
-            SecretString::from("user"),
-            SecretString::from("pass"),
-            None,
-            None
-        ).await.unwrap();
+        engine
+            .add_account(
+                SecretString::from(format!("site{}", i)),
+                SecretString::from("user"),
+                SecretString::from("pass"),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
     }
 
     // Get page 1 (2 items)
     let page1 = engine.get_accounts_paged(2, 0).await.unwrap();
     assert_eq!(page1.len(), 2);
-    
+
     // Get page 2 (2 items)
     let page2 = engine.get_accounts_paged(2, 2).await.unwrap();
     assert_eq!(page2.len(), 2);
-    
+
     // Ensure page 1 and page 2 are different
     for p1 in &page1 {
         for p2 in &page2 {
@@ -220,33 +248,41 @@ async fn test_deduplication() {
     let pass = SecretString::from("secret");
 
     // Add once
-    engine.add_account(site.clone(), user.clone(), pass.clone(), None, None).await.unwrap();
-    
+    engine
+        .add_account(site.clone(), user.clone(), pass.clone(), None, None)
+        .await
+        .unwrap();
+
     // Create an export package manually (simplified)
     use crate::vault::export::*;
     let payload = ExportPayload {
-        accounts: vec![
-            ExportAccount {
-                site: site.as_str().to_string(),
-                username: user.as_str().to_string(),
-                password: pass.as_str().to_string(),
-                recovery_code: None,
-                notes: None,
-                group_name: None,
-            }
-        ],
+        accounts: vec![ExportAccount {
+            site: site.as_str().to_string(),
+            username: user.as_str().to_string(),
+            password: pass.as_str().to_string(),
+            recovery_code: None,
+            notes: None,
+            group_name: None,
+        }],
         pins: vec![],
         documents: vec![],
         preferences: vec![],
         timestamp: "2024".to_string(),
     };
-    
+
     let export_pass = SecretString::from("export");
     let package = ExportPackage::encrypt(&payload, &export_pass).unwrap();
     let package_json = serde_json::to_string(&package).unwrap();
 
     // Import with Merge strategy
-    engine.import_vault(&package_json, &export_pass, crate::vault::ImportStrategy::Merge).await.unwrap();
+    engine
+        .import_vault(
+            &package_json,
+            &export_pass,
+            crate::vault::ImportStrategy::Merge,
+        )
+        .await
+        .unwrap();
 
     // Verify it's NOT duplicated
     let accounts = engine.get_accounts().await.unwrap();

@@ -46,31 +46,32 @@ impl super::CriptorEngine {
         let (enc_name, enc_pin, enc_notes) = self.with_key(|key| {
             let n = crypto::encrypt(&name, key)?;
             let p = crypto::encrypt(&pin, key)?;
-            let note = notes.as_ref().map(|n| crypto::encrypt(n, key)).transpose()?;
+            let note = notes
+                .as_ref()
+                .map(|n| crypto::encrypt(n, key))
+                .transpose()?;
             Ok::<_, CriptorError>((n, p, note))
         })??;
 
-        let id = storage::add_pin(
-            &self.db,
-            &enc_name,
-            &enc_pin,
-            enc_notes.as_deref(),
-            None,
-        ).await?;
+        let id =
+            storage::add_pin(&self.db, &enc_name, &enc_pin, enc_notes.as_deref(), None).await?;
 
-        self.log_audit(crate::audit::AuditAction::PinCreate, Some(&id)).await?;
+        self.log_audit(crate::audit::AuditAction::PinCreate, Some(&id))
+            .await?;
         Ok(id)
     }
 
     pub async fn delete_pin(&self, id: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
-        self.log_audit(crate::audit::AuditAction::PinDelete, Some(id)).await?;
+        self.log_audit(crate::audit::AuditAction::PinDelete, Some(id))
+            .await?;
         storage::delete_pin(&self.db, id).await
     }
 
     pub async fn update_pin_group(&self, id: &str, group_name: Option<&str>) -> CriptorResult<()> {
         self.check_unlocked()?;
-        self.log_audit(crate::audit::AuditAction::PinGroupUpdate, Some(id)).await?;
+        self.log_audit(crate::audit::AuditAction::PinGroupUpdate, Some(id))
+            .await?;
         storage::update_pin_group(&self.db, id, group_name).await
     }
 }

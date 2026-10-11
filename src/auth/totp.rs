@@ -1,10 +1,10 @@
 use crate::crypto::secret::SecretBytes;
 use crate::error::CriptorResult;
-use totp_rs::{Algorithm, TOTP};
-use serde::{Serialize, Deserialize};
 use base64::Engine;
-use rand::RngCore;
 use rand::rngs::OsRng;
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use totp_rs::{Algorithm, TOTP};
 use zeroize::Zeroizing;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -28,7 +28,7 @@ impl TotpManager {
     fn create_totp(secret: &SecretBytes) -> CriptorResult<TOTP> {
         let secret_bytes = secret.as_bytes();
         let seed = Zeroizing::new(secret_bytes.to_vec());
-        
+
         TOTP::new(
             Algorithm::SHA1,
             6,
@@ -37,7 +37,8 @@ impl TotpManager {
             seed.to_vec(),
             Some("Criptor".to_string()),
             "vault".to_string(),
-        ).map_err(|e| crate::error::CriptorError::CryptoError(format!("TOTP init error: {e}")))
+        )
+        .map_err(|e| crate::error::CriptorError::CryptoError(format!("TOTP init error: {e}")))
     }
 
     /// Generates the otpauth URL for QR codes.
@@ -49,16 +50,18 @@ impl TotpManager {
     /// Generates the QR code PNG as a base64 string.
     pub fn generate_qr_png_b64(secret: &SecretBytes) -> CriptorResult<String> {
         let url = Self::get_otpauth_url(secret)?;
-        let code = qrcode::QrCode::new(url.as_bytes())
-            .map_err(|e| crate::error::CriptorError::CryptoError(format!("QR generation error: {e}")))?;
-            
+        let code = qrcode::QrCode::new(url.as_bytes()).map_err(|e| {
+            crate::error::CriptorError::CryptoError(format!("QR generation error: {e}"))
+        })?;
+
         let image = code.render::<image::Luma<u8>>().build();
-        
+
         let mut png_bytes = Vec::new();
         let encoder = image::codecs::png::PngEncoder::new(&mut png_bytes);
-        image.write_with_encoder(encoder)
-            .map_err(|e| crate::error::CriptorError::CryptoError(format!("PNG encoding error: {e}")))?;
-        
+        image.write_with_encoder(encoder).map_err(|e| {
+            crate::error::CriptorError::CryptoError(format!("PNG encoding error: {e}"))
+        })?;
+
         Ok(base64::engine::general_purpose::STANDARD.encode(&png_bytes))
     }
 
@@ -72,19 +75,21 @@ impl TotpManager {
     pub fn generate_recovery_codes() -> Vec<String> {
         let mut rng = OsRng;
         let charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Removed ambiguous chars (O, 0, I, 1)
-        
-        (0..10).map(|_| {
-            let mut code = String::with_capacity(14);
-            for i in 0..12 {
-                if i > 0 && i % 4 == 0 {
-                    code.push('-');
+
+        (0..10)
+            .map(|_| {
+                let mut code = String::with_capacity(14);
+                for i in 0..12 {
+                    if i > 0 && i % 4 == 0 {
+                        code.push('-');
+                    }
+                    use rand::Rng;
+                    let idx = rng.gen_range(0..charset.len());
+                    code.push(charset.chars().nth(idx).unwrap());
                 }
-                use rand::Rng;
-                let idx = rng.gen_range(0..charset.len());
-                code.push(charset.chars().nth(idx).unwrap());
-            }
-            code
-        }).collect()
+                code
+            })
+            .collect()
     }
 }
 
@@ -124,7 +129,9 @@ mod tests {
         let b64 = TotpManager::generate_qr_png_b64(&secret).unwrap();
         assert!(!b64.is_empty());
         // Verify it's valid base64
-        base64::engine::general_purpose::STANDARD.decode(b64).unwrap();
+        base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap();
     }
 
     #[test]

@@ -1,7 +1,7 @@
 // Preferences (settings) persistence, with pool- and transaction-based variants.
 
-use sqlx::{SqliteConnection, SqlitePool};
 use crate::error::CriptorResult;
+use sqlx::{SqliteConnection, SqlitePool};
 
 /// Gets a user preference by key.
 pub async fn get_preference(pool: &SqlitePool, key: &str) -> CriptorResult<Option<String>> {
@@ -22,7 +22,10 @@ pub async fn get_all_preferences(pool: &SqlitePool) -> CriptorResult<Vec<(String
 }
 
 /// Reads a preference inside an existing transaction.
-pub async fn get_preference_tx(conn: &mut SqliteConnection, key: &str) -> CriptorResult<Option<String>> {
+pub async fn get_preference_tx(
+    conn: &mut SqliteConnection,
+    key: &str,
+) -> CriptorResult<Option<String>> {
     let row: Option<(String,)> = sqlx::query_as("SELECT value FROM preferences WHERE key = ?")
         .bind(key)
         .fetch_optional(conn)
@@ -44,7 +47,11 @@ pub async fn set_preference(pool: &SqlitePool, key: &str, value: &str) -> Cripto
 }
 
 /// Inserts or updates a preference inside an existing transaction.
-pub async fn set_preference_tx(conn: &mut SqliteConnection, key: &str, value: &str) -> CriptorResult<()> {
+pub async fn set_preference_tx(
+    conn: &mut SqliteConnection,
+    key: &str,
+    value: &str,
+) -> CriptorResult<()> {
     sqlx::query(
         "INSERT INTO preferences (key, value) VALUES (?, ?)
          ON CONFLICT(key) DO UPDATE SET value = excluded.value",

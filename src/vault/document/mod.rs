@@ -11,9 +11,7 @@ impl super::CriptorEngine {
         let rows = storage::get_documents(&self.db).await?;
         let mut docs = Vec::with_capacity(rows.len());
         for row in rows {
-            let dec_title = self.with_key(|key| {
-                crypto::decrypt(&row.title, key)
-            })??;
+            let dec_title = self.with_key(|key| crypto::decrypt(&row.title, key))??;
             docs.push(crate::storage::models::Document {
                 id: row.id,
                 title: dec_title.as_str().to_string(),
@@ -59,7 +57,8 @@ impl super::CriptorEngine {
         )
         .await?;
 
-        self.log_audit(crate::audit::AuditAction::DocumentCreate, Some(&id)).await?;
+        self.log_audit(crate::audit::AuditAction::DocumentCreate, Some(&id))
+            .await?;
         Ok(id)
     }
 
@@ -98,22 +97,23 @@ impl super::CriptorEngine {
         )
         .await?;
 
-        self.log_audit(crate::audit::AuditAction::DocumentUpdate, Some(id)).await?;
+        self.log_audit(crate::audit::AuditAction::DocumentUpdate, Some(id))
+            .await?;
         Ok(())
     }
 
     /// Deletes a document by ID.
     pub async fn delete_document(&self, id: &str) -> CriptorResult<()> {
         self.check_unlocked()?;
-        self.log_audit(crate::audit::AuditAction::DocumentDelete, Some(id)).await?;
+        self.log_audit(crate::audit::AuditAction::DocumentDelete, Some(id))
+            .await?;
         storage::delete_document(&self.db, id).await
     }
 
     /// Decrypts the content of a single document on demand.
     pub fn decrypt_document_content(&self, encrypted_content: &str) -> CriptorResult<String> {
         self.with_key(|key| {
-            crypto::decrypt(encrypted_content, key)
-                .map(|s| s.as_str().to_string())
+            crypto::decrypt(encrypted_content, key).map(|s| s.as_str().to_string())
         })?
     }
 }

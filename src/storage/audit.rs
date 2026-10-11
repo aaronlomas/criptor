@@ -1,7 +1,7 @@
 // Audit log persistence.
 
-use sqlx::SqlitePool;
 use crate::error::CriptorResult;
+use sqlx::SqlitePool;
 
 /// Maximum number of audit log rows retained at any time.
 /// Rows older than this cap are pruned automatically on each insert.
@@ -38,18 +38,20 @@ pub async fn prune_audit_log(pool: &SqlitePool) -> CriptorResult<()> {
 
 /// Removes every audit log row.
 pub async fn clear_audit_log(pool: &SqlitePool) -> CriptorResult<()> {
-    sqlx::query("DELETE FROM audit_log")
-        .execute(pool)
-        .await?;
+    sqlx::query("DELETE FROM audit_log").execute(pool).await?;
     Ok(())
 }
 
 /// Fetches the most recent audit logs.
-pub async fn get_audit_logs(pool: &SqlitePool, limit: i64) -> CriptorResult<Vec<(i64, String, Option<String>, String)>> {
-    let rows: Vec<(i64, String, Option<String>, String)> =
-        sqlx::query_as("SELECT id, action, metadata, created_at FROM audit_log ORDER BY id DESC LIMIT ?")
-            .bind(limit)
-            .fetch_all(pool)
-            .await?;
+pub async fn get_audit_logs(
+    pool: &SqlitePool,
+    limit: i64,
+) -> CriptorResult<Vec<(i64, String, Option<String>, String)>> {
+    let rows: Vec<(i64, String, Option<String>, String)> = sqlx::query_as(
+        "SELECT id, action, metadata, created_at FROM audit_log ORDER BY id DESC LIMIT ?",
+    )
+    .bind(limit)
+    .fetch_all(pool)
+    .await?;
     Ok(rows)
 }
