@@ -1,0 +1,51 @@
+[package]
+name = "criptor"
+version = "1.2.1"
+edition = "2021"
+description = "Criptor — framework-agnostic local secrets and credential engine SDK"
+license = "GPL-3.0-only"
+repository = "https://github.com/aaronlomas/criptor"
+
+[dependencies]
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Database
+sqlx = { version = "0.8.6", default-features = false, features = ["sqlite", "runtime-tokio-rustls", "macros"] }
+
+# Cryptography
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+base64 = "0.21"
+subtle = "2.5"
+
+# Utilities
+uuid = { version = "1", features = ["v4"] }
+zeroize = { version = "1", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+dirs-next = "2"
+tokio = { version = "1", features = ["time"] }
+# Memory Protection
+region = "3"
+libc = "0.2"
+thiserror = "2.0.18"
+
+# 2FA / TOTP
+totp-rs = { version = "5", features = ["qr"] }
+qrcode = "0.14"
+image = "0.25"
+
+[target.'cfg(windows)'.dependencies.windows-sys]
+version = "0.52"
+features = ["Win32_System_Memory", "Win32_Foundation", "Win32_System_Diagnostics_Debug", "Win32_UI_WindowsAndMessaging"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
+
+[dependencies.libsqlite3-sys]
+version = "0.30"
+default-features = false
+features = ["bundled-sqlcipher-vendored-openssl"]
