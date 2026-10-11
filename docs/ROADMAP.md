@@ -1,10 +1,10 @@
-# Bóveda-Core Roadmap
+# Criptor Roadmap
 
-This document outlines the strategic vision and technical goals for the development of **Bóveda Core**. The objective is to become the open-source standard for local and cross-platform secret management.
+This document outlines the strategic vision and technical goals for the development of **Criptor**. The objective is to become the open-source standard for local and cross-platform secret management.
 
 ---
 
-## 🎯 Phase 1: Stabilization and Trust (Q3 2026)
+## Phase 1: Stabilization and Trust (Q3 2026)
 *Focus: Code quality, internal auditing, and robustness.*
 
 - [ ] **Test Automation (CI/CD):**
@@ -14,11 +14,11 @@ This document outlines the strategic vision and technical goals for the developm
 - [x] **Security Whitepaper:** Comprehensively document the cryptographic design, key hierarchy, and memory hardening measures.
 - [x] **Error Refactoring:** Complete the migration to structured and localized errors across all core modules.
 
-## 🚀 Phase 2: Ecosystem Expansion (Q4 2026 - Q1 2027)
+## Phase 2: Ecosystem Expansion (Q4 2026 - Q1 2027)
 *Focus: Portability and access from multiple interfaces.*
 - [x] **Armored Export Container:** Implement a strictly encrypted export format (.bvda.pack) with a zeroized memory pipeline, rejecting plaintext formats (CSV/JSON) to ensure forensic integrity.
 
-## 🛡️ Phase 3: Advanced Hardening and Pro Features (Q2 2027+)
+## Phase 3: Advanced Hardening and Pro Features (Q2 2027+)
 *Focus: Hardware integration and enterprise-level features.*
 
 - [ ] **Hardware Security Integration (HSM):** Native support for hardware keys (YubiKey) and Secure Enclave / TPM for vault unlocking.

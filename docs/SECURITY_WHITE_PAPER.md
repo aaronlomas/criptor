@@ -1,16 +1,16 @@
-# 🛡️ Bóveda Core: Security White Paper
+# Criptor: Security White Paper
 
-This document details the security architecture, cryptographic design, and memory hardening measures implemented in **Bóveda Core**. Our goal is to provide full transparency for users and security auditors.
+This document details the security architecture, cryptographic design, and memory hardening measures implemented in **Criptor**. Our goal is to provide full transparency for users and security auditors.
 
 ---
 
 ## 1. Security Philosophy: "Security by Isolation"
 
-Bóveda Core is designed around the principle of strict process isolation. The core engine functions as a black box that handles secrets exclusively within protected memory, exposing a minimal interface (Facade) to radically reduce the attack surface. The system is entirely **Zero-Knowledge**: all data never leaves the user's device, and the developer has no technical means to recover master passwords.
+Criptor is designed around the principle of strict process isolation. The core engine functions as a black box that handles secrets exclusively within protected memory, exposing a minimal interface (Facade) to radically reduce the attack surface. The system is entirely **Zero-Knowledge**: all data never leaves the user's device, and the developer has no technical means to recover master passwords.
 
 ## 2. Cryptographic Stack
 
-Bóveda utilizes modern, resilient, and high-performance cryptographic primitives:
+Criptor uses modern, resilient, and high-performance cryptographic primitives:
 
 
 
@@ -18,7 +18,7 @@ Bóveda utilizes modern, resilient, and high-performance cryptographic primitive
 | :--- | :--- | :--- |
 | **KDF (Key Derivation Function)** | Argon2id | Winner of the Password Hashing Competition; highly resistant to GPU/ASIC brute-force attacks. |
 | **Symmetric Encryption** | ChaCha20-Poly1305 | Authenticated Encryption with Associated Data (AEAD); extremely fast and secure, preferred over AES on systems lacking dedicated hardware acceleration. |
-| **Database Encryption** | SQLCipher (AES-256-GCM) | Industry standard for transparent SQLite database encryption featuring page-level integrity verification. |
+| **Database Encryption** | SQLCipher — AES-256-CBC + HMAC-SHA512 | Industry standard for transparent SQLite database encryption. Pages are encrypted with AES-256-CBC and authenticated with HMAC-SHA512 (encrypt-then-MAC); the cipher key is derived with PBKDF2-HMAC-SHA512 (256,000 iterations, 4096-byte pages). All parameters are pinned explicitly in code rather than relying on compiled-in defaults. |
 | **Entropy Generation** | `rand::rngs::OsRng` | Leverages the operating system's cryptographically secure pseudorandom number generator (CSPRNG). |
 
 ---
@@ -44,18 +44,18 @@ Once derived, the **Master Key** is wrapped inside a `MasterKey` struct that str
 ## 4. Process Hardening
 
 ### 4.1 Anti-Forensics (Linux/Unix/Windows)
-Upon startup, Bóveda executes preventive security measures at the OS level:
+Upon startup, Criptor executes preventive security measures at the OS level:
 - **Linux:** Calls `prctl(PR_SET_DUMPABLE, 0)` to disable core dumps and prevent unprivileged processes from attaching via `ptrace`.
 - **Windows:** Configures `SetErrorMode` to prevent system error dialogs that could inadvertently write crash dumps to disk.
 
 ### 4.2 Transparent and Double-Layer Encryption
-The entire SQLite database file is encrypted by SQLCipher. Additionally, Bóveda enforces a **second layer of encryption** (Application-Layer Encryption): every sensitive field (username, password, notes, URL) is individually encrypted using ChaCha20-Poly1305 before database insertion. Even in the hypothetical event of an SQLCipher key compromise, the underlying secrets remain fully protected.
+The entire SQLite database file is encrypted by SQLCipher. Additionally, Criptor enforces a **second layer of encryption** (Application-Layer Encryption): every sensitive field (username, password, notes, URL) is individually encrypted using ChaCha20-Poly1305 before database insertion. Even in the hypothetical event of an SQLCipher key compromise, the underlying secrets remain fully protected.
 
 ---
 
 ## 5. Multi-Factor Authentication (TOTP)
 
-Bóveda Core supports TOTP (RFC 6238) as an optional second factor for vault decryption:
+Criptor supports TOTP (RFC 6238) as an optional second factor for vault decryption:
 - The TOTP secret is stored encrypted using the user's Master Key.
 - Single-use **recovery codes** are generated and stored under encryption to prevent permanent lockouts in case the authentication device is lost.
 
