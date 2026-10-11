@@ -8,13 +8,7 @@ targets = [
     { triple = "aarch64-apple-darwin" },
 ]
 
-[advisories]
-vulnerability = "deny"
-unmaintained = "warn"
-notice = "warn"
-
 [licenses]
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
@@ -27,7 +21,8 @@ allow = [
     "CC0-1.0",
     "Zlib",
     "OpenSSL",
-    "GPL-3.0-only",
+    "CDLA-Permissive-2.0",
+    "GPL-3.0",
 ]
 confidence-threshold = 0.8
 

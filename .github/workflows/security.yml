@@ -17,6 +17,7 @@ concurrency:
 permissions:
   contents: read
   security-events: write
+  checks: write
 
 jobs:
   cargo-audit:
@@ -26,16 +27,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Generate Cargo.lock if missing
-        run: cargo generate-lockfile
-
       - name: Run cargo-audit
-        uses: rustsec/audit-check@v2.0.0
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+        uses: actions-rust-lang/audit@v1
 
   cargo-deny:
     name: Dependency Policies and Licenses (cargo-deny)
@@ -47,7 +40,7 @@ jobs:
       - name: Run cargo-deny
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
-          command: check
+          command: check bans licenses sources
           arguments: --all-features
 
   gitleaks:

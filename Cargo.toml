@@ -1,6 +1,6 @@
 [package]
 name = "criptor"
-version = "1.2.1"
+version = "0.1.0"
 edition = "2021"
 description = "Criptor — framework-agnostic local secrets and credential engine SDK"
 license = "GPL-3.0-only"
