@@ -2,13 +2,12 @@ use std::sync::{Arc, Mutex};
 
 use sqlx::SqlitePool;
 use crate::crypto::secret::SecretKey;
-use crate::storage;
-use crate::error::CriptorResult;
 
 pub mod account;
 pub mod document;
 pub mod group;
 pub mod pin;
+pub mod preferences;
 pub mod validation;
 pub mod totp;
 pub mod export;
@@ -78,27 +77,4 @@ impl Drop for MasterKey {
 pub struct CriptorEngine {
     pub(crate) db: SqlitePool,
     pub(crate) master_key: Arc<Mutex<Option<MasterKey>>>,
-}
-
-// Preferences & Settings
-// ─────────────────────────────────────────────────────────────────────────────
-
-impl CriptorEngine {
-    pub async fn get_preference(&self, key: &str) -> CriptorResult<Option<String>> {
-        self.check_unlocked()?;
-        storage::get_preference(&self.db, key).await
-    }
-
-    pub async fn set_preference(&self, key: &str, value: &str) -> CriptorResult<()> {
-        self.check_unlocked()?;
-        validation::validate_string(key, "Preference", validation::MAX_PREF_KEY_LEN, true)?;
-        validation::validate_string(value, "Preference value", validation::MAX_PREF_VALUE_LEN, false)?;
-        storage::set_preference(&self.db, key, value).await
-    }
-
-    pub async fn delete_preference(&self, key: &str) -> CriptorResult<()> {
-        self.check_unlocked()?;
-        validation::validate_string(key, "Preference", validation::MAX_PREF_KEY_LEN, true)?;
-        storage::delete_preference(&self.db, key).await
-    }
 }
