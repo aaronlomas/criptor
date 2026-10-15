@@ -117,6 +117,51 @@ pub fn decrypt_raw(ciphertext: &[u8], nonce: &[u8], key: &SecretKey) -> CriptorR
     Ok(SecretBytes::new(plaintext))
 }
 
+// High-Level Helpers --------------------------------------------------------------------------
+
+/// Encrypts a plaintext string using a human-readable password instead of a pre-derived `SecretKey`.
+/// Automatically derives the encryption key using Argon2 with the provided salt, and encrypts
+/// the plaintext using ChaCha20-Poly1305.
+pub fn encrypt_with_password(
+    plaintext: &str,
+    password: &str,
+    salt: &[u8],
+) -> CriptorResult<String> {
+    let pwd_secret = SecretString::new(password.to_string());
+    let key = derive_key(&pwd_secret, salt)?;
+    let plain_secret = SecretString::new(plaintext.to_string());
+    encrypt(&plain_secret, &key)
+}
+
+/// Decrypts a ciphertext string using a human-readable password.
+/// Automatically derives the decryption key using Argon2 with the provided salt.
+pub fn decrypt_with_password(
+    ciphertext: &str,
+    password: &str,
+    salt: &[u8],
+) -> CriptorResult<String> {
+    let pwd_secret = SecretString::new(password.to_string());
+    let key = derive_key(&pwd_secret, salt)?;
+    let result = decrypt(ciphertext, &key)?;
+    Ok(result.as_str().to_string())
+}
+
+/// Verifies a plaintext string against a stored ciphertext securely.
+/// It decrypts the ciphertext using the given password and salt, and performs a
+/// constant-time comparison to prevent timing attacks.
+pub fn verify_with_password(
+    plaintext: &str,
+    ciphertext: &str,
+    password: &str,
+    salt: &[u8],
+) -> bool {
+    use subtle::ConstantTimeEq;
+    match decrypt_with_password(ciphertext, password, salt) {
+        Ok(decrypted) => plaintext.as_bytes().ct_eq(decrypted.as_bytes()).into(),
+        Err(_) => false,
+    }
+}
+
 // Utilities & Helpers
 
 /// Generates a random secure password of `length` characters.
@@ -295,5 +340,46 @@ mod tests {
             assert!(s.chars().any(|c| c.is_ascii_digit()));
             assert!(!s.chars().any(|c| "!@#$%^&*()-_=+[]{}|;:,.<>?".contains(c)));
         }
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_with_password_roundtrip() {
+        let salt = b"taxorium::sellers::v1";
+        let ciphertext = encrypt_with_password("clave-secreta-123", "device-id-xyz", salt).unwrap();
+        assert_ne!(ciphertext, "clave-secreta-123");
+
+        let plaintext = decrypt_with_password(&ciphertext, "device-id-xyz", salt).unwrap();
+        assert_eq!(plaintext, "clave-secreta-123");
+    }
+
+    #[test]
+    fn test_decrypt_with_wrong_password_fails() {
+        let salt = b"taxorium::sellers::v1";
+        let ciphertext = encrypt_with_password("clave-secreta-123", "device-id-xyz", salt).unwrap();
+        assert!(decrypt_with_password(&ciphertext, "otro-device", salt).is_err());
+    }
+
+    #[test]
+    fn test_verify_with_password() {
+        let salt = b"taxorium::sellers::v1";
+        let ciphertext = encrypt_with_password("clave-secreta-123", "device-id-xyz", salt).unwrap();
+        assert!(verify_with_password(
+            "clave-secreta-123",
+            &ciphertext,
+            "device-id-xyz",
+            salt
+        ));
+        assert!(!verify_with_password(
+            "clave-equivocada",
+            &ciphertext,
+            "device-id-xyz",
+            salt
+        ));
+        assert!(!verify_with_password(
+            "clave-secreta-123",
+            &ciphertext,
+            "otro-device",
+            salt
+        ));
     }
 }

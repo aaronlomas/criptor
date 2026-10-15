@@ -38,6 +38,12 @@ pub enum CriptorError {
     #[error("The resource was not found.: {0}")]
     NotFound(String),
 
+    #[error("Invalid private key format (PKCS#1 or PKCS#8 required)")]
+    InvalidKeyFormat,
+
+    #[error("PKCS12 Error: {0}")]
+    Pkcs12Error(String),
+
     #[error("{0}")]
     Other(String),
 }

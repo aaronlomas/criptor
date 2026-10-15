@@ -6,6 +6,7 @@ pub mod client;
 pub mod crypto;
 pub mod error;
 pub mod security;
+pub mod signing;
 pub mod storage;
 pub mod vault;
 
@@ -15,6 +16,7 @@ mod tests;
 pub use client::CriptorClient;
 pub use crypto::secret::{SecretKey, SecretString};
 pub use error::{CriptorError, CriptorResult};
+pub use signing::{parse_certificate_info, parse_pkcs12, sign_hash_with_key, CertificateInfo};
 pub use storage::models::{Account, Document, Pin};
 pub use vault::CriptorEngine;
 pub use vault::MasterKey;

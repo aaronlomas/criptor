@@ -20,6 +20,10 @@ argon2 = "0.5"
 rand = "0.8"
 base64 = "0.21"
 subtle = "2.5"
+# Asymmetric — X.509 / PKCS#12 parsing and RSA-SHA256 (XMLDSIG) signing
+rsa = { version = "0.9", features = ["sha2", "pem"] }
+x509-cert = "0.2"
+openssl = { version = "0.10", features = ["vendored"] }
 
 # Utilities
 uuid = { version = "1", features = ["v4"] }
