@@ -18,6 +18,8 @@ permissions:
   contents: read
   security-events: write
   checks: write
+  # Required by actions-rust-lang/audit to create/update issues per advisory.
+  issues: write
 
 jobs:
   cargo-audit:
@@ -29,6 +31,11 @@ jobs:
 
       - name: Run cargo-audit
         uses: actions-rust-lang/audit@v1
+        with:
+          # RUSTSEC-2023-0071 (Marvin Attack): the `rsa` crate has no fixed
+          # release available. Tracked upstream at:
+          # https://github.com/RustCrypto/RSA/issues/19
+          ignore: RUSTSEC-2023-0071
 
   cargo-deny:
     name: Dependency Policies and Licenses (cargo-deny)

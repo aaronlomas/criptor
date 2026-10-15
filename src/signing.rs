@@ -47,8 +47,9 @@ impl CertificateInfo {
 /// This is a pure cryptographic utility that does not depend on the vault database.
 /// The `pem_content` must contain a valid PEM-encoded certificate (`-----BEGIN CERTIFICATE-----`).
 pub fn parse_certificate_info(pem_content: &str) -> Result<CertificateInfo, CriptorError> {
-    let cert = Certificate::from_pem(pem_content.as_bytes())
-        .map_err(|e| CriptorError::CryptoError(format!("Failed to parse X.509 certificate: {}", e)))?;
+    let cert = Certificate::from_pem(pem_content.as_bytes()).map_err(|e| {
+        CriptorError::CryptoError(format!("Failed to parse X.509 certificate: {}", e))
+    })?;
 
     build_certificate_info(&cert)
 }
@@ -72,30 +73,32 @@ pub fn parse_pkcs12(
     let pfx = Pkcs12::from_der(p12_bytes)
         .map_err(|e| CriptorError::Pkcs12Error(format!("Failed to parse PKCS12 file: {}", e)))?;
 
-    let parsed = pfx
-        .parse2(password)
-        .map_err(|e| CriptorError::Pkcs12Error(format!("Failed to decrypt PKCS12 (check password): {}", e)))?;
+    let parsed = pfx.parse2(password).map_err(|e| {
+        CriptorError::Pkcs12Error(format!("Failed to decrypt PKCS12 (check password): {}", e))
+    })?;
 
-    let key = parsed
-        .pkey
-        .ok_or_else(|| CriptorError::Pkcs12Error("No private key found in PKCS12 file".to_string()))?;
+    let key = parsed.pkey.ok_or_else(|| {
+        CriptorError::Pkcs12Error("No private key found in PKCS12 file".to_string())
+    })?;
     // We use PKCS8 format for the private key PEM output
-    let key_pem_bytes = key
-        .private_key_to_pem_pkcs8()
-        .map_err(|e| CriptorError::Pkcs12Error(format!("Failed to export private key to PEM: {}", e)))?;
-    let key_pem = String::from_utf8(key_pem_bytes)
-        .map_err(|e| CriptorError::Pkcs12Error(format!("Invalid UTF-8 in private key PEM: {}", e)))?;
+    let key_pem_bytes = key.private_key_to_pem_pkcs8().map_err(|e| {
+        CriptorError::Pkcs12Error(format!("Failed to export private key to PEM: {}", e))
+    })?;
+    let key_pem = String::from_utf8(key_pem_bytes).map_err(|e| {
+        CriptorError::Pkcs12Error(format!("Invalid UTF-8 in private key PEM: {}", e))
+    })?;
     let private_key = SecretString::new(key_pem);
 
-    let cert_openssl = parsed
-        .cert
-        .ok_or_else(|| CriptorError::Pkcs12Error("No certificate found in PKCS12 file".to_string()))?;
-    let cert_der = cert_openssl
-        .to_der()
-        .map_err(|e| CriptorError::Pkcs12Error(format!("Failed to export certificate to DER: {}", e)))?;
+    let cert_openssl = parsed.cert.ok_or_else(|| {
+        CriptorError::Pkcs12Error("No certificate found in PKCS12 file".to_string())
+    })?;
+    let cert_der = cert_openssl.to_der().map_err(|e| {
+        CriptorError::Pkcs12Error(format!("Failed to export certificate to DER: {}", e))
+    })?;
 
-    let cert = Certificate::from_der(&cert_der)
-        .map_err(|e| CriptorError::CryptoError(format!("Failed to parse certificate from PKCS12: {}", e)))?;
+    let cert = Certificate::from_der(&cert_der).map_err(|e| {
+        CriptorError::CryptoError(format!("Failed to parse certificate from PKCS12: {}", e))
+    })?;
 
     let cert_info = build_certificate_info(&cert)?;
 
@@ -149,9 +152,9 @@ pub fn sign_hash_with_key(
 
 /// Builds a `CertificateInfo` from a parsed `Certificate`.
 fn build_certificate_info(cert: &Certificate) -> Result<CertificateInfo, CriptorError> {
-    let der_bytes = cert
-        .to_der()
-        .map_err(|e| CriptorError::CryptoError(format!("Failed to encode certificate to DER: {}", e)))?;
+    let der_bytes = cert.to_der().map_err(|e| {
+        CriptorError::CryptoError(format!("Failed to encode certificate to DER: {}", e))
+    })?;
 
     let x509_base64 = general_purpose::STANDARD.encode(&der_bytes);
     let issuer_dn = cert.tbs_certificate.issuer.to_string();

@@ -34,3 +34,12 @@ wildcards = "allow"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+[advisories]
+# Advisories we knowingly accept. Keep the list short and always document why.
+ignore = [
+    # Marvin Attack: potential key recovery through timing sidechannels.
+    # The `rsa` crate (v0.9.x) has no fixed release available.
+    # https://github.com/RustCrypto/RSA/issues/19
+    "RUSTSEC-2023-0071",
+]
