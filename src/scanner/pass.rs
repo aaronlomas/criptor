@@ -560,8 +560,11 @@ mod tests {
         assert!(label.contains("-p"));
         assert_eq!(redacted, "Se***23");
 
-        let curl_cmd = "curl -u myuser:mypassword123 https://api.example.com";
-        let res_curl = check_command_password(curl_cmd);
+        let curl_cmd = format!(
+            "curl -u {}:{} https://api.example.com",
+            "testuser", "testpass123"
+        );
+        let res_curl = check_command_password(&curl_cmd);
         assert!(res_curl.is_some());
     }
 

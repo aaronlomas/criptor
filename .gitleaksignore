@@ -1,0 +1,5 @@
+# Gitleaks ignore list for test fixtures and doc comments
+# Doc comment in src/signing.rs explaining supported PEM formats
+31055ffe204601f1d225f92588966d1976c2f16a:src/signing.rs:private-key:116
+# Test fixture in src/scanner/pass.rs for curl argument detection
+62fe9984d0df10a5bc830f1d2d29a9911087efd2:src/scanner/pass.rs:curl-auth-user:563
