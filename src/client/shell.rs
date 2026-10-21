@@ -4,7 +4,185 @@
 
 use crate::client::CriptorClient;
 use crate::crypto;
+use crate::security;
 use crate::storage::AUDIT_LOG_MAX_ROWS;
+use crate::telemetry::{self, AnalysisTool, SystemSnapshot};
+
+/// Width of the panels rendered by the shell.
+const PANEL_WIDTH: usize = 60;
+
+/// Number of processes listed by the `sysinfo` command in each ranking.
+const PROCESS_RANKING_SIZE: usize = 8;
+
+/// Builds a panel header padded to [`PANEL_WIDTH`] characters.
+fn panel_header(title: &str) -> String {
+    let prefix = format!("── {} ", title);
+    let fill = PANEL_WIDTH.saturating_sub(prefix.chars().count());
+    format!("{}{}", prefix, "─".repeat(fill))
+}
+
+/// Builds a panel footer spanning [`PANEL_WIDTH`] characters.
+fn panel_footer() -> String {
+    "─".repeat(PANEL_WIDTH)
+}
+
+/// Runs `task` on the blocking thread pool when a Tokio runtime is available,
+/// falling back to a synchronous execution otherwise.
+async fn run_blocking<T, F>(task: F) -> Result<T, String>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) => handle
+            .spawn_blocking(task)
+            .await
+            .map_err(|e| format!("worker thread terminated: {}", e)),
+        Err(_) => Ok(task()),
+    }
+}
+
+/// Renders the debugger verdict.
+///
+/// The evidence is moved to its own line so the panel keeps a constant width
+/// regardless of how long the platform specific detail is.
+fn render_debugger_verdict() -> Vec<String> {
+    match security::debugger_evidence() {
+        Some(evidence) => vec![
+            "  Debugger          : ATTACHED".to_string(),
+            format!("  Evidence          : {}", evidence.describe()),
+        ],
+        None => vec!["  Debugger          : not attached".to_string()],
+    }
+}
+
+/// Renders the compact runtime block appended to the `status` command.
+fn render_runtime_status(snapshot: &SystemSnapshot) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(format!(
+        "  CPU               : {:.1}% ({} cores)",
+        snapshot.cpu_usage_percent, snapshot.cpu_cores
+    ));
+    lines.push(format!(
+        "  Memory            : {} / {} ({:.0}%)",
+        telemetry::format_bytes(snapshot.used_memory),
+        telemetry::format_bytes(snapshot.total_memory),
+        snapshot.memory_usage_percent()
+    ));
+    lines.push(format!("  Processes         : {}", snapshot.process_count));
+    lines.push(format!(
+        "  Uptime            : {}",
+        telemetry::format_duration(snapshot.uptime_seconds)
+    ));
+
+    lines.extend(render_debugger_verdict());
+
+    lines
+}
+
+/// Renders the process ranking table used by the `sysinfo` command.
+fn render_process_table(title: &str, processes: &[&telemetry::ProcessSample]) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(panel_header(title));
+    lines.push(format!(
+        "  {:<8} {:>7} {:>10}  {}",
+        "PID", "CPU %", "MEM", "NAME"
+    ));
+
+    if processes.is_empty() {
+        lines.push("  (no data available)".to_string());
+    } else {
+        for process in processes {
+            lines.push(format!(
+                "  {:<8} {:>7.2} {:>10}  {}",
+                process.pid.as_u32(),
+                process.cpu_percent,
+                telemetry::format_bytes(process.memory_bytes),
+                process.name
+            ));
+        }
+    }
+
+    lines.push(panel_footer());
+    lines
+}
+
+/// Renders the analysis tools detected in the process table.
+fn render_analysis_tools(tools: &[AnalysisTool]) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(panel_header("Analysis Tools"));
+    if tools.is_empty() {
+        lines.push("  None detected.".to_string());
+    } else {
+        for tool in tools {
+            lines.push(format!(
+                "  {:<8} {:<24} {}",
+                tool.pid.as_u32(),
+                tool.name,
+                tool.category.label()
+            ));
+        }
+        lines.push(format!("  {} process(es) flagged.", tools.len()));
+    }
+    lines.push(panel_footer());
+    lines
+}
+
+/// Renders the full telemetry report of the `sysinfo` command.
+fn render_sysinfo(snapshot: SystemSnapshot) -> Vec<String> {
+    let mut lines = Vec::new();
+
+    lines.push(panel_header("System Telemetry"));
+    lines.push(format!(
+        "  CPU               : {:.1}% ({} cores)",
+        snapshot.cpu_usage_percent, snapshot.cpu_cores
+    ));
+    lines.push(format!(
+        "  Memory            : {} / {} ({:.0}%)",
+        telemetry::format_bytes(snapshot.used_memory),
+        telemetry::format_bytes(snapshot.total_memory),
+        snapshot.memory_usage_percent()
+    ));
+    lines.push(format!(
+        "  Available         : {}",
+        telemetry::format_bytes(snapshot.available_memory)
+    ));
+    lines.push(format!(
+        "  Swap              : {} / {}",
+        telemetry::format_bytes(snapshot.swap_used),
+        telemetry::format_bytes(snapshot.swap_total)
+    ));
+    lines.push(format!(
+        "  Uptime            : {}",
+        telemetry::format_duration(snapshot.uptime_seconds)
+    ));
+    lines.push(format!("  Processes         : {}", snapshot.process_count));
+    lines.push(panel_footer());
+
+    lines.extend(render_process_table(
+        "Top Processes (CPU)",
+        &snapshot.top_by_cpu(PROCESS_RANKING_SIZE),
+    ));
+    lines.extend(render_process_table(
+        "Top Processes (Memory)",
+        &snapshot.top_by_memory(PROCESS_RANKING_SIZE),
+    ));
+    lines.extend(render_analysis_tools(&snapshot.analysis_tools));
+
+    lines.push(panel_header("Security Verdict"));
+    lines.extend(render_debugger_verdict());
+    lines.push(format!(
+        "  Analysis tools    : {} detected",
+        snapshot.analysis_tools.len()
+    ));
+    lines.push("  Note              : heuristic only, not a security boundary.".to_string());
+    lines.push(panel_footer());
+
+    lines
+}
 
 impl CriptorClient {
     /// Processes a plain text command and returns response lines.
@@ -19,6 +197,7 @@ impl CriptorClient {
                 "┌─ criptor SDK CLI ─────────────────────────────────────────┐".into(),
                 "│  crypto       Show active cryptographic parameters        │".into(),
                 "│  status       Show vault lock state and session info      │".into(),
+                "│  sysinfo      Show CPU, memory and process telemetry       │".into(),
                 "│  audit        Show last 10 audit log entries              │".into(),
                 "│  audit -n <N> Show last N audit log entries               │".into(),
                 "│  audit -rm    Clear all audit log entries                 │".into(),
@@ -67,14 +246,28 @@ impl CriptorClient {
                     "N/A"
                 };
 
-                vec![
-                    "── Criptor Status ───────────────────────────────────────────".into(),
+                let mut lines = vec![
+                    panel_header("Criptor Status"),
                     format!("  Criptor State     : {}", vault_state),
-                    format!("  Session          : {}", session_state),
-                    format!("  DB Path          : {}", self.db_path.display()),
-                    "────────────────────────────────────────────────────────────".into(),
-                ]
+                    format!("  Session           : {}", session_state),
+                    format!("  DB Path           : {}", self.db_path.display()),
+                ];
+
+                // The runtime block requires a live system sample, which is
+                // taken on a blocking worker to avoid stalling the runtime.
+                match run_blocking(telemetry::snapshot).await {
+                    Ok(snapshot) => lines.extend(render_runtime_status(&snapshot)),
+                    Err(e) => lines.push(format!("  Runtime          : unavailable ({})", e)),
+                }
+
+                lines.push(panel_footer());
+                lines
             }
+
+            "sysinfo" | "sys" => match run_blocking(telemetry::snapshot).await {
+                Ok(snapshot) => render_sysinfo(snapshot),
+                Err(e) => vec![format!("sysinfo: error: {}", e)],
+            },
 
             "audit" => {
                 match args {
@@ -91,8 +284,8 @@ impl CriptorClient {
                     flag if flag.starts_with("-n ") => {
                         let n_str = flag.trim_start_matches("-n ").trim();
                         match n_str.parse::<i64>() {
-                        Ok(n) if n > 0 => self.shell_show_audit_logs(n).await,
-                        _ => vec![
+                            Ok(n) if n > 0 => self.shell_show_audit_logs(n).await,
+                            _ => vec![
                             format!("audit -n: invalid argument '{}' — expected a positive integer.", n_str),
                             "  Usage: audit -n <N>".into(),
                         ],

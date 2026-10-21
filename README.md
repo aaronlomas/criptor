@@ -19,6 +19,8 @@ in any Rust or FFI application (desktop app, CLI, service).
 - **Optional TOTP** — RFC 6238 second factor with QR setup and single-use recovery codes.
 - **Encrypted packages** — `.bvda.pack` export/import with an independent export key.
 - **Audit log** — every sensitive operation is recorded inside the encrypted database.
+- **Environment introspection** — on-demand CPU, memory and process telemetry, plus detection
+  of debuggers attached to the current process.
 
 ## Cryptographic stack
 
@@ -85,6 +87,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ```
 
 See [`docs/USAGE.md`](docs/USAGE.md) for the full API walkthrough.
+
+## Shell interface
+
+`query_shell` exposes a text-driven interface that returns plain lines for the host application
+to render:
+
+| Command | Description |
+| :--- | :--- |
+| `help` | Lists the available commands. |
+| `crypto` | Shows the active cryptographic parameters. |
+| `status` | Vault state, session state, database path and a compact runtime block. |
+| `sysinfo` | CPU, memory, swap, the process table and the detected analysis tools. |
+| `audit` | Shows the last 10 audit log entries (`-n <N>` and `-rm` are supported). |
+
+The runtime and telemetry data is sampled on demand, rendered and discarded: it is never stored,
+audited or transmitted.
 
 ## Documentation
 

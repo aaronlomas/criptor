@@ -1,6 +1,115 @@
 #[cfg(target_os = "linux")]
 use std::env;
 
+/// Evidence that the current process is attached to a debugger.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DebuggerEvidence {
+    /// Linux: `TracerPid` from `/proc/self/status` points at the tracer.
+    LinuxTracerPid(u32),
+    /// Windows: `IsDebuggerPresent()` reported an attached debugger.
+    WindowsDebuggerPresent,
+    /// macOS: the `P_TRACED` flag is set on the current process.
+    MacOsProcessTraced,
+}
+
+impl DebuggerEvidence {
+    /// Human readable summary of the detection.
+    pub fn describe(&self) -> String {
+        match self {
+            DebuggerEvidence::LinuxTracerPid(pid) => {
+                format!("Linux tracer attached (TracerPid={})", pid)
+            }
+            DebuggerEvidence::WindowsDebuggerPresent => {
+                "Windows debugger detected (IsDebuggerPresent)".to_string()
+            }
+            DebuggerEvidence::MacOsProcessTraced => {
+                "macOS process traced (P_TRACED flag set)".to_string()
+            }
+        }
+    }
+}
+
+/// Detects whether the current process is being traced by a debugger.
+///
+/// Unlike a process-name scan — which only lists well known debugging tools
+/// running elsewhere — this check inspects the *current* process, so it
+/// reports the real attachment state of Criptor itself.
+pub fn debugger_evidence() -> Option<DebuggerEvidence> {
+    #[cfg(target_os = "linux")]
+    {
+        let Ok(status) = std::fs::read_to_string("/proc/self/status") else {
+            return None;
+        };
+
+        for line in status.lines() {
+            if let Some(rest) = line.strip_prefix("TracerPid:") {
+                let tracer_pid = rest.trim().parse::<u32>().unwrap_or(0);
+                return if tracer_pid > 0 {
+                    Some(DebuggerEvidence::LinuxTracerPid(tracer_pid))
+                } else {
+                    None
+                };
+            }
+        }
+
+        None
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        unsafe {
+            use windows_sys::Win32::System::Diagnostics::Debug::IsDebuggerPresent;
+            if IsDebuggerPresent() != 0 {
+                return Some(DebuggerEvidence::WindowsDebuggerPresent);
+            }
+        }
+
+        None
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // `KERN_PROC` returns a `kinfo_proc` structure whose first member is
+        // `proc_bsdinfo`, and `proc_bsdinfo.p_flags` is its first `u32`.
+        // Reading the leading bytes therefore exposes the process flags.
+        const P_TRACED: u32 = 0x0000_0800;
+        const BUFFER_SIZE: usize = 1024;
+
+        let mut buffer = [0u8; BUFFER_SIZE];
+        let mut size = buffer.len() as libc::size_t;
+
+        let pid = unsafe { libc::getpid() };
+        let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, pid];
+
+        let result = unsafe {
+            libc::sysctl(
+                mib.as_mut_ptr(),
+                mib.len() as libc::c_uint,
+                buffer.as_mut_ptr() as *mut libc::c_void,
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+
+        if result != 0 || size < std::mem::size_of::<u32>() {
+            return None;
+        }
+
+        let flags = u32::from_ne_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
+        if flags & P_TRACED != 0 {
+            return Some(DebuggerEvidence::MacOsProcessTraced);
+        }
+
+        None
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "windows", target_os = "macos")))]
+    {
+        None
+    }
+}
+
 /// Checks if the current session is a remote connection.
 /// Returns `true` if a remote session is detected (e.g. SSH, RDP, etc.).
 pub fn environment_check() -> bool {

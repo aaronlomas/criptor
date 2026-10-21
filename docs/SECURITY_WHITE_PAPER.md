@@ -48,7 +48,23 @@ Upon startup, Criptor executes preventive security measures at the OS level:
 - **Linux:** Calls `prctl(PR_SET_DUMPABLE, 0)` to disable core dumps and prevent unprivileged processes from attaching via `ptrace`.
 - **Windows:** Configures `SetErrorMode` to prevent system error dialogs that could inadvertently write crash dumps to disk.
 
-### 4.2 Transparent and Double-Layer Encryption
+### 4.2 Debugger Attachment Detection
+Criptor can report whether the *current* process is attached to a debugger, which is exposed
+through `security::debugger_evidence()` and rendered by the `status` shell command:
+- **Linux:** Reads `TracerPid` from `/proc/self/status`; a non-zero value identifies the tracer.
+- **Windows:** Uses `IsDebuggerPresent()` from the `Win32_System_Diagnostics_Debug` API.
+- **macOS:** Reads the process flags returned by the `KERN_PROC` sysctl and inspects the `P_TRACED` flag.
+
+This check is **read-only and observational**: it never blocks an operation, it does not attach to
+other processes and it does not attempt to terminate the tracer. Host applications decide what
+to do with the result.
+
+Separately, the `sysinfo` shell command lists processes whose executable name matches a known
+reverse-engineering, debugging or traffic capture tool. This detection is a **name-based
+heuristic**, not a security boundary: it can be evaded by renaming an executable, it can produce
+false positives and it never blocks any operation.
+
+### 4.3 Transparent and Double-Layer Encryption
 The entire SQLite database file is encrypted by SQLCipher. Additionally, Criptor enforces a **second layer of encryption** (Application-Layer Encryption): every sensitive field (username, password, notes, URL) is individually encrypted using ChaCha20-Poly1305 before database insertion. Even in the hypothetical event of an SQLCipher key compromise, the underlying secrets remain fully protected.
 
 ---

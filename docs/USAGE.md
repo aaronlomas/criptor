@@ -17,9 +17,10 @@ schema details).
 - [10. Audit logs](#10-audit-logs)
 - [11. Export and import](#11-export-and-import)
 - [12. Utilities](#12-utilities)
-- [13. Error handling](#13-error-handling)
-- [14. Concurrency](#14-concurrency)
-- [15. Complete example](#15-complete-example)
+- [13. Shell interface](#13-shell-interface)
+- [14. Error handling](#14-error-handling)
+- [15. Concurrency](#15-concurrency)
+- [16. Complete example](#16-complete-example)
 
 ## 1. Installation
 
@@ -303,7 +304,59 @@ let data_url: String = client.get_background_data_url(&filename)?;
 let dir: String = client.get_data_dir();
 ```
 
-## 13. Error handling
+## 13. Shell interface
+
+`query_shell` is the single entry point for a text-driven interface. It parses a plain command
+and returns the rendered lines, so the host application decides how to display them.
+
+```rust
+let lines = client.query_shell("status").await;
+for line in lines {
+    println!("{}", line);
+}
+```
+
+| Command | Description |
+| :--- | :--- |
+| `help` | Lists the available commands. |
+| `crypto` | Shows the active cryptographic parameters. |
+| `status` | Vault lock state, session state, database path and a compact runtime block (CPU, memory, process count, uptime and whether a debugger is attached to the current process). |
+| `sysinfo` (alias `sys`) | Full system telemetry: CPU, memory, swap, uptime, the process table ranked by CPU and by memory, and the analysis tools detected in the process table. |
+| `audit` | Shows the last 10 audit log entries. |
+| `audit -n <N>` | Shows the last `N` audit log entries. |
+| `audit -rm` | Clears every audit log entry. |
+
+The runtime block of `status` and the whole `sysinfo` report are collected on demand: the sample
+is taken when the command runs, rendered, and discarded. Nothing is stored, audited or
+transmitted.
+
+### Environment introspection
+
+Two independent checks are exposed to the host application:
+
+```rust
+use criptor::security::debugger_evidence;
+
+// Reports whether the *current* process is attached to a debugger.
+// Uses TracerPid on Linux, IsDebuggerPresent on Windows and the P_TRACED
+// flag on macOS.
+if let Some(evidence) = debugger_evidence() {
+    println!("debugger detected: {}", evidence.describe());
+}
+```
+
+```rust
+use criptor::telemetry::snapshot;
+
+let snapshot = snapshot();
+println!("cpu {:.1}%", snapshot.cpu_usage_percent);
+println!("top process: {:?}", snapshot.top_by_memory(1));
+```
+
+The analysis tool detection included in the `sysinfo` report is a **name-based heuristic**, not a
+security boundary: it can be evaded by renaming an executable and it never blocks any operation.
+
+## 14. Error handling
 
 Client methods return `Result<T, String>`. The engine layer returns
 `Result<T, criptor::CriptorError>`, whose variants include `VaultLocked`,
@@ -318,14 +371,14 @@ match client.unlock_vault(password).await {
 }
 ```
 
-## 14. Concurrency
+## 15. Concurrency
 
 `CriptorClient` is `Clone` and shares its engine behind an `Arc<Mutex<..>>`. Cloning is the
 intended way to share a client across tasks; there is one engine (and one connection pool) per
 locked session. A background guard that clears only the master key still makes `is_locked()`
 report `true`.
 
-## 15. Complete example
+## 16. Complete example
 
 ```rust
 use criptor::{CriptorClient, SecretString};

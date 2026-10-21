@@ -8,6 +8,7 @@ pub mod error;
 pub mod security;
 pub mod signing;
 pub mod storage;
+pub mod telemetry;
 pub mod vault;
 
 #[cfg(test)]
