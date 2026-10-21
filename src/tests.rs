@@ -332,3 +332,40 @@ async fn test_export_import_path_clean() {
     // Clean up
     let _ = std::fs::remove_dir_all(&temp_dir);
 }
+
+#[tokio::test]
+async fn test_query_shell_scan_pass() {
+    let temp_dir =
+        std::env::temp_dir().join(format!("criptor_test_shell_scan_{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    let db_path = temp_dir.join("vault.bvda");
+
+    let client = crate::client::CriptorClient::new(db_path);
+
+    // Verifies that the help command lists scan -pass
+    let help_output = client.query_shell("help").await;
+    assert!(help_output.iter().any(|line| line.contains("scan -pass")));
+
+    // Verifies that calling scan without flags returns a usage warning
+    let missing_flag = client.query_shell("scan").await;
+    assert!(missing_flag
+        .iter()
+        .any(|line| line.contains("missing flag")));
+    assert_eq!(missing_flag.last().map(|s| s.as_str()), Some("#"));
+
+    // Verifies that calling scan with an invalid flag returns an error message
+    let unknown_flag = client.query_shell("scan -invalid").await;
+    assert!(unknown_flag
+        .iter()
+        .any(|line| line.contains("unknown flag")));
+    assert_eq!(unknown_flag.last().map(|s| s.as_str()), Some("#"));
+
+    // Verifies that scan -pass executes properly and emits the delimiter
+    let scan_output = client.query_shell("scan -pass").await;
+    assert!(scan_output
+        .iter()
+        .any(|line| line.contains("Password Exposure Scan")));
+    assert_eq!(scan_output.last().map(|s| s.as_str()), Some("#"));
+
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

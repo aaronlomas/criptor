@@ -5,6 +5,7 @@ pub mod auth;
 pub mod client;
 pub mod crypto;
 pub mod error;
+pub mod scanner;
 pub mod security;
 pub mod signing;
 pub mod storage;
