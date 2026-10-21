@@ -14,6 +14,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use path_clean::PathClean;
+
 use crate::crypto;
 use crate::crypto::secret::SecretString;
 use crate::vault::CriptorEngine;
@@ -46,21 +48,22 @@ impl CriptorClient {
     /// Creates a client for the given vault database path. The directory holding
     /// auxiliary files defaults to the database's parent directory.
     pub fn new(db_path: PathBuf) -> Self {
-        let base_dir = db_path
+        let cleaned_db = db_path.clean();
+        let base_dir = cleaned_db
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
         Self {
             engine: Arc::new(Mutex::new(None)),
             session_verified: Arc::new(Mutex::new(false)),
-            db_path,
+            db_path: cleaned_db,
             base_dir,
         }
     }
 
     /// Overrides the directory used for auxiliary files.
     pub fn with_base_dir(mut self, base_dir: PathBuf) -> Self {
-        self.base_dir = base_dir;
+        self.base_dir = base_dir.clean();
         self
     }
 

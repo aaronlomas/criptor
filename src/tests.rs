@@ -296,3 +296,39 @@ fn test_master_key_memory_protection() {
     let mk = crate::vault::MasterKey::new(key);
     drop(mk);
 }
+
+#[tokio::test]
+async fn test_export_import_path_clean() {
+    let temp_dir =
+        std::env::temp_dir().join(format!("criptor_test_clean_{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_dir).unwrap();
+    let db_path = temp_dir.join("vault.bvda");
+    std::fs::write(&db_path, b"test-db-content").unwrap();
+
+    let client = crate::client::CriptorClient::new(db_path.clone());
+
+    // 1. Exporting to the same file with unclean paths (e.g. redundant dots or slashes) must fail
+    let same_file_dirty = format!("{}/./vault.bvda", temp_dir.display());
+    let res = client.export_db(&same_file_dirty).await;
+    assert!(res.is_err(), "export_db must reject exporting to self");
+
+    // 2. Exporting to a clean distinct destination should succeed even if the path contains lexical dots
+    let export_dirty = format!("{}/subdir/../backup.bvda", temp_dir.display());
+    let res = client.export_db(&export_dirty).await;
+    assert!(
+        res.is_ok(),
+        "export_db should succeed with cleaned path: {:?}",
+        res
+    );
+    assert!(temp_dir.join("backup.bvda").exists());
+
+    // 3. prepare_import_db with unclean path pointing to active DB must fail
+    let res = client.prepare_import_db(&same_file_dirty).await;
+    assert!(
+        res.is_err(),
+        "prepare_import_db must reject importing active database"
+    );
+
+    // Clean up
+    let _ = std::fs::remove_dir_all(&temp_dir);
+}

@@ -1,8 +1,10 @@
+use path_clean::PathClean;
+
 // Only utilities for background images and paths remain here.
 
 impl super::CriptorClient {
     pub async fn import_background_image(&self, src_path: &str) -> Result<String, String> {
-        let src = std::path::Path::new(src_path);
+        let src = std::path::Path::new(src_path).clean();
         if !src.exists() {
             return Err("The image file does not exist.".to_string());
         }

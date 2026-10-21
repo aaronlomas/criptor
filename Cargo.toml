@@ -30,6 +30,7 @@ uuid = { version = "1", features = ["v4"] }
 zeroize = { version = "1", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 anyhow = "1"
+path-clean = "1.0.1"
 tokio = { version = "1", features = ["time", "rt"] }
 # System telemetry — CPU, memory and process table introspection.
 # Only the "system" feature is enabled to keep the dependency tree minimal.

@@ -194,10 +194,10 @@ impl CriptorClient {
 
         match command.as_str() {
             "help" => vec![
-                "┌─ criptor SDK CLI ─────────────────────────────────────────┐".into(),
+                "┌─ Criptor CLI ─────────────────────────────────────────────┐".into(),
                 "│  crypto       Show active cryptographic parameters        │".into(),
                 "│  status       Show vault lock state and session info      │".into(),
-                "│  sysinfo      Show CPU, memory and process telemetry       │".into(),
+                "│  sysinfo      Show CPU, memory and process telemetry      │".into(),
                 "│  audit        Show last 10 audit log entries              │".into(),
                 "│  audit -n <N> Show last N audit log entries               │".into(),
                 "│  audit -rm    Clear all audit log entries                 │".into(),
@@ -207,7 +207,7 @@ impl CriptorClient {
             ],
 
             "crypto" => vec![
-                "── Cryptographic Parameters ────────────────────────────────".into(),
+                "Cryptographic Parameters".into(),
                 "  KDF Algorithm    : Argon2id (RFC 9106)".to_string(),
                 format!(
                     "  Memory Cost (m)  : {} KiB  ({} MiB)",
@@ -228,7 +228,7 @@ impl CriptorClient {
                     crypto::TAG_LEN
                 ),
                 "  Key Length       : 32 bytes (256-bit)".to_string(),
-                "────────────────────────────────────────────────────────────".into(),
+                "#".into(), //We use '#' to mark the end of the output for each command.
             ],
 
             "status" => {
@@ -273,10 +273,10 @@ impl CriptorClient {
                 match args {
                     "-rm" => match self.clear_audit_logs().await {
                         Ok(()) => vec![
-                            "── Audit Log ────────────────────────────────────────────────".into(),
+                            "Audit Log".into(),
                             "  All audit log entries have been removed.".into(),
                             format!("  Retention cap: {} rows (automatic).", AUDIT_LOG_MAX_ROWS),
-                            "────────────────────────────────────────────────────────────".into(),
+                            "#".into(),
                         ],
                         Err(e) => vec![format!("audit -rm: error: {}", e)],
                     },
@@ -314,10 +314,7 @@ impl CriptorClient {
     async fn shell_show_audit_logs(&self, limit: i64) -> Vec<String> {
         match self.get_audit_logs(limit).await {
             Ok(logs) => {
-                let mut output = vec![format!(
-                    "── Audit Log (last {}) ──────────────────────────────────────",
-                    limit
-                )];
+                let mut output = vec![format!("Audit Log (last {})", limit)];
                 if logs.is_empty() {
                     output.push("  No audit log entries found.".into());
                 } else {
@@ -327,7 +324,7 @@ impl CriptorClient {
                     }
                 }
                 output.push(format!("  Retention cap: {} rows.", AUDIT_LOG_MAX_ROWS));
-                output.push("────────────────────────────────────────────────────────────".into());
+                output.push("#".into());
                 output
             }
             Err(e) => vec![format!("audit: error fetching entries: {}", e)],
