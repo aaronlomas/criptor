@@ -53,7 +53,7 @@ Criptor can report whether the *current* process is attached to a debugger, whic
 through `security::debugger_evidence()` and rendered by the `status` shell command:
 - **Linux:** Reads `TracerPid` from `/proc/self/status`; a non-zero value identifies the tracer.
 - **Windows:** Uses `IsDebuggerPresent()` from the `Win32_System_Diagnostics_Debug` API.
-- **macOS:** Reads the process flags returned by the `KERN_PROC` sysctl and inspects the `P_TRACED` flag.
+- **macOS:** Queries process state via `proc_pidinfo(PROC_PIDTBSDINFO)` and inspects the `PROC_FLAG_TRACED` flag.
 
 This check is **read-only and observational**: it never blocks an operation, it does not attach to
 other processes and it does not attempt to terminate the tracer. Host applications decide what

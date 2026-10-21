@@ -338,8 +338,8 @@ Two independent checks are exposed to the host application:
 use criptor::security::debugger_evidence;
 
 // Reports whether the *current* process is attached to a debugger.
-// Uses TracerPid on Linux, IsDebuggerPresent on Windows and the P_TRACED
-// flag on macOS.
+// Uses TracerPid on Linux, IsDebuggerPresent on Windows and
+// proc_pidinfo (PROC_FLAG_TRACED) on macOS.
 if let Some(evidence) = debugger_evidence() {
     println!("debugger detected: {}", evidence.describe());
 }

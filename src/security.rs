@@ -69,35 +69,26 @@ pub fn debugger_evidence() -> Option<DebuggerEvidence> {
 
     #[cfg(target_os = "macos")]
     {
-        // `KERN_PROC` returns a `kinfo_proc` structure whose first member is
-        // `proc_bsdinfo`, and `proc_bsdinfo.p_flags` is its first `u32`.
-        // Reading the leading bytes therefore exposes the process flags.
-        const P_TRACED: u32 = 0x0000_0800;
-        const BUFFER_SIZE: usize = 1024;
-
-        let mut buffer = [0u8; BUFFER_SIZE];
-        let mut size = buffer.len() as libc::size_t;
+        // On macOS, `proc_pidinfo` queries the kernel BSD layer for process info.
+        // `PROC_FLAG_TRACED` (0x02) in `pbi_flags` indicates that a debugger
+        // (such as LLDB or GDB) is attached to the current process.
+        const PROC_FLAG_TRACED: u32 = 0x0000_0002;
 
         let pid = unsafe { libc::getpid() };
-        let mut mib = [libc::CTL_KERN, libc::KERN_PROC, libc::KERN_PROC_PID, pid];
+        let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+        let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
 
-        let result = unsafe {
-            libc::sysctl(
-                mib.as_mut_ptr(),
-                mib.len() as libc::c_uint,
-                buffer.as_mut_ptr() as *mut libc::c_void,
-                &mut size,
-                std::ptr::null_mut(),
+        let ret = unsafe {
+            libc::proc_pidinfo(
+                pid,
+                libc::PROC_PIDTBSDINFO,
                 0,
+                &mut info as *mut _ as *mut libc::c_void,
+                size,
             )
         };
 
-        if result != 0 || size < std::mem::size_of::<u32>() {
-            return None;
-        }
-
-        let flags = u32::from_ne_bytes([buffer[0], buffer[1], buffer[2], buffer[3]]);
-        if flags & P_TRACED != 0 {
+        if ret == size && (info.pbi_flags & PROC_FLAG_TRACED) != 0 {
             return Some(DebuggerEvidence::MacOsProcessTraced);
         }
 

@@ -25,7 +25,7 @@ use sysinfo::{
 /// `sysinfo` reports CPU and per-process usage as the delta between two
 /// consecutive refreshes, so a second sample is mandatory for the percentages
 /// to carry any meaning.
-const SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+pub const SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
 
 /// Executables considered reverse-engineering, debugging or traffic capture
 /// tools.
@@ -239,11 +239,20 @@ fn process_label(process: &Process) -> String {
 /// Returns the category of `name` when it matches a known analysis tool.
 ///
 /// The comparison is exact and case-insensitive on purpose: a substring match
-/// would flag unrelated executables.
+/// would flag unrelated executables. Any trailing `.exe` extension (common on
+/// Windows systems) is stripped prior to matching.
 pub fn classify_tool(name: &str) -> Option<ToolCategory> {
+    let trimmed = name.trim();
+    let normalized =
+        if trimmed.len() >= 4 && trimmed[trimmed.len() - 4..].eq_ignore_ascii_case(".exe") {
+            &trimmed[..trimmed.len() - 4]
+        } else {
+            trimmed
+        };
+
     ANALYSIS_TOOLS
         .iter()
-        .find(|(tool, _)| tool.eq_ignore_ascii_case(name))
+        .find(|(tool, _)| tool.eq_ignore_ascii_case(normalized))
         .map(|(_, category)| *category)
 }
 
@@ -336,6 +345,14 @@ mod tests {
             classify_tool("wireshark"),
             Some(ToolCategory::NetworkCapture)
         );
+
+        // Windows executable names typically end in `.exe`.
+        assert_eq!(
+            classify_tool("wireshark.exe"),
+            Some(ToolCategory::NetworkCapture)
+        );
+        assert_eq!(classify_tool("X64DBG.EXE"), Some(ToolCategory::Debugger));
+        assert_eq!(classify_tool("firefox.exe"), None);
 
         // Partial names must never match, otherwise unrelated executables
         // would be reported as analysis tools.
