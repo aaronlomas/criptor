@@ -99,7 +99,7 @@ to render:
 | `crypto` | Shows the active cryptographic parameters. |
 | `status` | Vault state, session state, database path and a compact runtime block. |
 | `sysinfo` | CPU, memory, swap, the process table and the detected analysis tools. |
-| `audit` | Shows the last 10 audit log entries (`-n <N>` and `-rm` are supported). |
+| `sessions` | Shows the last 10 audit log entries (`-n <N>` and `-rm` are supported). |
 
 The runtime and telemetry data is sampled on demand, rendered and discarded: it is never stored,
 audited or transmitted.
